@@ -26,6 +26,7 @@ from dimos.msgs.geometry_msgs.Vector3 import Vector3
 from dimos.msgs.sensor_msgs.Image import Image
 from dimos.msgs.sensor_msgs.PointCloud2 import PointCloud2
 from dimos.msgs.vision_msgs.Detection2DArray import Detection2DArray
+from dimos.msgs.vision_msgs.Detection3DArray import Detection3DArray
 from dimos.perception.detection.module2D import Detection2DModule
 from dimos.perception.detection.type.detection2d.imageDetections2D import ImageDetections2D
 from dimos.perception.detection.type.detection3d.imageDetections3DPC import ImageDetections3DPC
@@ -39,6 +40,7 @@ class Detection3DModule(Detection2DModule):
     pointcloud: In[PointCloud2]
 
     detections: Out[Detection2DArray]
+    detections_3d: Out[Detection3DArray]
     # just for visualization,
     # emits latest pointclouds of detected objects in a frame
     detected_pointcloud_0: Out[PointCloud2]
@@ -183,6 +185,7 @@ class Detection3DModule(Detection2DModule):
         if not detections:
             return
 
+        self.detections_3d.publish(detections.to_ros_detection3d_array())
         for index, detection in enumerate(detections[:3]):
             pointcloud_topic = getattr(self, "detected_pointcloud_" + str(index))
             pointcloud_topic.publish(detection.pointcloud)
