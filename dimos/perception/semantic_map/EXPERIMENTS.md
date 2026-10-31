@@ -116,3 +116,32 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
   the accumulated cloud is too sparse or temporally misaligned inside many small masks. Keep this
   as an optional blueprint, not the default. Next evaluate a hybrid mask-plus-box fallback and
   explicitly measure how many masks lack enough projected points.
+
+## E04 — hybrid mask-to-box lifting
+
+- Commit: this hybrid-lifter commit (resolve with `git log --oneline`)
+- Date: 2026-10-30
+- Dataset/hardware/detector/association: same as E03
+- 3D lifting/config: use the segmentation mask when at least 20 projected cloud points support it
+  and filtering succeeds; otherwise retry the same detection using its 2D bounding box
+- Command: `dimos --replay --replay-db data/go2_short.db --viewer none run
+  unitree-go2-semantic-map-hybrid`
+- Visual artifact: none for this metrics-only run
+- Perception metrics: 855 input frames at 14.30 source FPS; 567 detector calls at 7.33 calls/s;
+  402 total 2D detections; inference 31.50 ms mean / 55.48 ms p95 (1.46 s cold-start maximum);
+  293 detections entered fusion and 202 survived (68.94%); alignment 121.01 ms mean / 231.72 ms
+  p95; fusion 12.76 ms mean / 53.04 ms p95
+- Lifter diagnostics: 288 masks attempted; 143 mask results retained; 20 masks (6.94%) had fewer
+  than 20 projected points; 145 box fallbacks attempted and 59 recovered a valid 3D observation
+  (40.69% fallback recovery); mean raw projected support was 1,979.91 points/mask
+- Map metrics: 46 candidates, 29 confirmed, 185 confirmed observations, 77.23% association rate,
+  6.38 confirmed observations/object, 0.174 m mean centroid standard deviation; nearby same-label
+  pair counts were 2 at 0.5 m, 4 at 0.75 m, and 8 at 1.0 m
+- Comparison to E03: survival rose from 40.20% to 68.94%, confirmed observations from 106 to 185,
+  and confirmed objects from 23 to 29. Fusion p95 rose from 37.79 to 53.04 ms because failed masks
+  run the point filters again for the box fallback. Duplicate proxies also rose, so the additional
+  objects are not automatically additional true positives.
+- Conclusion: the fallback recovers most of the mask-only map loss while preserving masks for
+  supported objects. Raw mask sparsity explains only 20 of 145 fallbacks; filter rejection is the
+  larger loss source. Keep the hybrid as an experimental option until visual inspection and an
+  association improvement distinguish recovered shelf objects from duplicate landmarks.

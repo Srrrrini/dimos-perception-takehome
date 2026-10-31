@@ -179,6 +179,7 @@ class Detection3DModule(Detection2DModule):
                 "alignment_ms": self._distribution(self._alignment_ms),
                 "fusion_ms": self._distribution(self._fusion_ms),
                 "lifter": type(self.lifter).__name__,
+                "lifter_metrics": self.lifter.get_metrics(),
             }
 
     def pixel_to_3d(
