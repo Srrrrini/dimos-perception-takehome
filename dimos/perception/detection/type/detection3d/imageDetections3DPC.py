@@ -24,6 +24,7 @@ from dimos.msgs.geometry_msgs.Vector3 import Vector3
 from dimos.msgs.std_msgs.Header import Header
 from dimos.msgs.vision_msgs.Detection3D import Detection3D
 from dimos.msgs.vision_msgs.Detection3DArray import Detection3DArray
+from dimos.perception.detection.appearance import encode_detection_id
 from dimos.perception.detection.type.detection3d.pointcloud import Detection3DPC, lattice_quantum
 from dimos.perception.detection.type.imageDetections import ImageDetections
 
@@ -56,7 +57,8 @@ class ImageDetections3DPC(ImageDetections[Detection3DPC]):
             size = detection.get_bounding_box_dimensions()
             msg = Detection3D()
             msg.header = Header(detection.ts, detection.frame_id)
-            msg.id = str(detection.track_id) if detection.track_id >= 0 else ""
+            track_id = str(detection.track_id) if detection.track_id >= 0 else ""
+            msg.id = encode_detection_id(track_id, detection.appearance_descriptor)
             msg.results = [
                 ObjectHypothesisWithPose(
                     hypothesis=ObjectHypothesis(

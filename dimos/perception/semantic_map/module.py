@@ -37,6 +37,7 @@ from dimos.msgs.geometry_msgs.Vector3 import Vector3
 from dimos.msgs.std_msgs.Header import Header
 from dimos.msgs.vision_msgs.Detection3D import Detection3D
 from dimos.msgs.vision_msgs.Detection3DArray import Detection3DArray
+from dimos.perception.detection.appearance import decode_detection_id
 from dimos.perception.semantic_map.backend import SemanticMapBackend
 from dimos.perception.semantic_map.tracker import (
     ObjectObservation,
@@ -248,6 +249,7 @@ class SemanticObjectMap(Module):
             return None
         center = detection.bbox.center.position
         size = detection.bbox.size
+        source_track_id, descriptor = decode_detection_id(str(detection.id))
         position = (float(center.x), float(center.y), float(center.z))
         anchor_keyframe = len(keyframe_poses) - 1 if keyframe_poses else None
         anchor_position = None
@@ -267,7 +269,8 @@ class SemanticObjectMap(Module):
             size=(float(size.x), float(size.y), float(size.z)),
             confidence=float(best.hypothesis.score),
             timestamp=to_timestamp(detection.header.stamp) or fallback_ts,
-            source_track_id=str(detection.id),
+            source_track_id=source_track_id,
+            descriptor=descriptor,
             anchor_keyframe=anchor_keyframe,
             anchor_position=anchor_position,
         )

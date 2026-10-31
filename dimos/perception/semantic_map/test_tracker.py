@@ -180,6 +180,21 @@ def test_temporal_tracker_reidentifies_moved_object_from_descriptor() -> None:
     assert moved.state == TrackState.MOVED
 
 
+def test_temporal_tracker_does_not_relocate_active_descriptor_match() -> None:
+    tracker = TemporalSemanticMapTracker(association_distance_m=0.5, dormant_after_s=5.0)
+    original = tracker.update(
+        [observation("chair", 1.0, 1.0, "old", descriptor=(1.0, 0.0))]
+    )[0]
+
+    tracker.update(
+        [observation("chair", 3.0, 2.0, "new", descriptor=(0.99, 0.01))]
+    )
+
+    assert len(tracker.objects) == 2
+    assert original.state == TrackState.ACTIVE
+    assert original.move_count == 0
+
+
 def test_pose_graph_correction_reprojects_anchored_observations() -> None:
     tracker = TemporalSemanticMapTracker(association_distance_m=0.5)
     anchored = ObjectObservation(

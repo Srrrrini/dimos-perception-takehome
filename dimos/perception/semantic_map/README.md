@@ -72,11 +72,17 @@ and object tops, so box dimensions are visualization aids rather than collision 
 objects need evidence beyond a single tracker-ID jump before their persistent identity is moved.
 
 The `unitree-go2-semantic-map-temporal` blueprint combines YOLO11 segmentation, hybrid mask/box
-lifting, global one-to-one assignment, and explicit active/dormant/moved lifecycle. Static objects
-seen after a long gap retain their identity by class and world position. A moved object retains its
-identity only after an injected appearance-descriptor match; ambiguous revisits create a new
-object instead of silently corrupting the map. Source-ID-only relocation is available as an
+lifting, batched ResNet-18 appearance embeddings, global one-to-one assignment, and explicit
+active/dormant/moved lifecycle. Static objects seen after a long gap retain their identity by class
+and world position. A moved object retains its identity only when a dormant same-class candidate
+passes both an appearance threshold and a best-versus-second-best margin; ambiguous revisits create
+a new object instead of silently corrupting the map. Source-ID-only relocation is available as an
 opt-in backend policy, but is disabled because replay showed stable IDs can accompany bad 3D jumps.
+
+Appearance extraction is selected through the `AppearanceDescriptor` factory. The final blueprint
+uses public torchvision ResNet-18 weights; no-op, HSV-histogram, and DimOS DINOv2 implementations
+remain swappable. Descriptors are float16-encoded into the opaque standard `Detection3D.id` field,
+so the downstream message type remains `Detection3DArray` and plain third-party IDs still decode.
 
 Semantic observations retain their keyframe-local coordinates and are reprojected whenever the Go2
 pose graph updates, including after loop closure. Tracks are merged after correction only when they

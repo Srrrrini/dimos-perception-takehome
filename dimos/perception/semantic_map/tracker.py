@@ -363,6 +363,7 @@ class TemporalSemanticMapTracker(GlobalAssignmentSemanticMapTracker):
         dormant_after_s: float = 5.0,
         reidentification_distance_m: float = 5.0,
         descriptor_similarity: float = 0.85,
+        descriptor_margin: float = 0.05,
         source_track_reid_max_age_s: float = 2.0,
         move_confirmation_observations: int = 5,
         allow_source_track_relocation: bool = False,
@@ -377,6 +378,9 @@ class TemporalSemanticMapTracker(GlobalAssignmentSemanticMapTracker):
         if not 0.0 < descriptor_similarity <= 1.0:
             raise ValueError("descriptor_similarity must be in (0, 1]")
         self.descriptor_similarity = descriptor_similarity
+        if not 0.0 <= descriptor_margin < 1.0:
+            raise ValueError("descriptor_margin must be in [0, 1)")
+        self.descriptor_margin = descriptor_margin
         if source_track_reid_max_age_s <= 0:
             raise ValueError("source_track_reid_max_age_s must be positive")
         self.source_track_reid_max_age_s = source_track_reid_max_age_s
@@ -385,8 +389,10 @@ class TemporalSemanticMapTracker(GlobalAssignmentSemanticMapTracker):
         self.move_confirmation_observations = move_confirmation_observations
         self.allow_source_track_relocation = allow_source_track_relocation
         self._pending_moves: dict[str, tuple[tuple[float, float, float], int, float]] = {}
+        self._descriptor_match_cache: dict[int, tuple[str, float]] = {}
 
     def update(self, observations: list[ObjectObservation]) -> list[SemanticObject]:
+        self._descriptor_match_cache.clear()
         if observations:
             now = max(observation.timestamp for observation in observations)
             for obj in self._objects.values():
@@ -408,15 +414,53 @@ class TemporalSemanticMapTracker(GlobalAssignmentSemanticMapTracker):
             and observation.source_track_id == obj.source_track_id
             and observation.timestamp - obj.last_seen <= self.source_track_reid_max_age_s
         )
-        descriptor_match = self._descriptor_similarity(observation.descriptor, obj.descriptor)
+        descriptor_identity = self._unambiguous_descriptor_match(observation, obj)
+        descriptor_match = (
+            self._descriptor_similarity(observation.descriptor, obj.descriptor)
+            if descriptor_identity
+            else 0.0
+        )
         if observation.label.casefold() == obj.label.casefold() and (
             (self.allow_source_track_relocation and same_source_identity)
-            or descriptor_match >= self.descriptor_similarity
+            or descriptor_identity
         ):
             distance = math.dist(obj.position, observation.position)
             if distance <= self.reidentification_distance_m:
                 return self.association_distance_m + distance - descriptor_match * 0.1
         return invalid_cost
+
+    def _unambiguous_descriptor_match(
+        self, observation: ObjectObservation, candidate: SemanticObject
+    ) -> bool:
+        """Require a dormant best match with separation from the next candidate."""
+        if candidate.state != TrackState.DORMANT or not observation.descriptor:
+            return False
+        cached = self._descriptor_match_cache.get(id(observation))
+        if cached is not None:
+            return cached[0] == candidate.object_id
+        similarities = sorted(
+            (
+                self._descriptor_similarity(observation.descriptor, obj.descriptor),
+                obj.object_id,
+            )
+            for obj in self._objects.values()
+            if obj.state == TrackState.DORMANT
+            and obj.label.casefold() == observation.label.casefold()
+            and math.dist(obj.position, observation.position) <= self.reidentification_distance_m
+        )
+        if not similarities:
+            return False
+        best_similarity, best_id = similarities[-1]
+        second_similarity = similarities[-2][0] if len(similarities) > 1 else 0.0
+        eligible = (
+            best_similarity >= self.descriptor_similarity
+            and best_similarity - second_similarity >= self.descriptor_margin
+        )
+        self._descriptor_match_cache[id(observation)] = (
+            best_id if eligible else "",
+            best_similarity,
+        )
+        return eligible and best_id == candidate.object_id
 
     def _update_match(self, match: SemanticObject, observation: ObjectObservation) -> None:
         if math.dist(match.position, observation.position) <= self.association_distance_m:

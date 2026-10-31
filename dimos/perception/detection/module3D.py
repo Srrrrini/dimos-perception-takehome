@@ -32,6 +32,7 @@ from dimos.msgs.sensor_msgs.Image import Image
 from dimos.msgs.sensor_msgs.PointCloud2 import PointCloud2
 from dimos.msgs.vision_msgs.Detection2DArray import Detection2DArray
 from dimos.msgs.vision_msgs.Detection3DArray import Detection3DArray
+from dimos.perception.detection.appearance import AppearanceDescriptor, NoAppearanceDescriptor
 from dimos.perception.detection.lifter import Detection3DLifter, ProjectedPointCloudLifter
 from dimos.perception.detection.module2D import Config as Detection2DConfig, Detection2DModule
 from dimos.perception.detection.type.detection2d.imageDetections2D import ImageDetections2D
@@ -47,6 +48,7 @@ class Detection3DConfig(Detection2DConfig):
     """Configuration with a replaceable camera-LiDAR lifting strategy."""
 
     lifter: Callable[[], Detection3DLifter] = ProjectedPointCloudLifter
+    appearance_descriptor: Callable[[], AppearanceDescriptor] = NoAppearanceDescriptor
 
 
 class Detection3DModule(Detection2DModule):
@@ -73,6 +75,7 @@ class Detection3DModule(Detection2DModule):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         super().__init__(*args, **kwargs)
         self.lifter = self.config.lifter()
+        self.appearance_descriptor = self.config.appearance_descriptor()
         self._metrics_lock = RLock()
         self._metrics_started_at = time.perf_counter()
         self._input_frames = 0
@@ -87,6 +90,8 @@ class Detection3DModule(Detection2DModule):
         self._missing_transforms = 0
         self._alignment_ms: list[float] = []
         self._fusion_ms: list[float] = []
+        self._descriptor_count = 0
+        self._descriptor_ms: list[float] = []
 
     def _observe_input(self, image: Image) -> None:
         timestamp = float(image.ts)
@@ -123,6 +128,21 @@ class Detection3DModule(Detection2DModule):
             return ImageDetections3DPC(detections.image, [])
 
         result = self.lifter.lift(detections, pointcloud, self.config.camera_info, transform)
+        sources = {
+            (detection.track_id, detection.class_id, detection.bbox): detection
+            for detection in detections
+        }
+        descriptor_started_at = time.perf_counter()
+        descriptor_sources = [
+            sources.get((detection.track_id, detection.class_id, detection.bbox), detection)
+            for detection in result
+        ]
+        descriptors = self.appearance_descriptor.describe_many(descriptor_sources)
+        descriptor_ms = (time.perf_counter() - descriptor_started_at) * 1000.0
+        for detection, descriptor in zip(result, descriptors, strict=True):
+            detection.appearance_descriptor = descriptor
+            self._descriptor_ms.append(descriptor_ms / max(len(result), 1))
+            self._descriptor_count += bool(detection.appearance_descriptor)
         alignment_ms = abs(float(detections.image.ts) - float(pointcloud.ts)) * 1000.0
         with self._metrics_lock:
             self._fusion_calls += 1
@@ -180,6 +200,9 @@ class Detection3DModule(Detection2DModule):
                 "fusion_ms": self._distribution(self._fusion_ms),
                 "lifter": type(self.lifter).__name__,
                 "lifter_metrics": self.lifter.get_metrics(),
+                "appearance_descriptor": type(self.appearance_descriptor).__name__,
+                "descriptor_count": self._descriptor_count,
+                "descriptor_ms": self._distribution(self._descriptor_ms),
             }
 
     def pixel_to_3d(

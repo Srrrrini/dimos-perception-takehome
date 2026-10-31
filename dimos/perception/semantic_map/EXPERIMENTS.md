@@ -224,3 +224,33 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
 - Conclusion: semantic landmarks now follow the existing DimOS pose graph through loop closure
   instead of remaining frozen in stale world coordinates. This is correction propagation rather
   than a joint object/pose factor graph; the latter would require adding semantic factors to PGO.
+
+## E08 — learned appearance descriptors and dormant-object ReID
+
+- Commit: this appearance-ReID commit (resolve with `git log --oneline`)
+- Date: 2026-10-30
+- Dataset/hardware/detector/lifter/association: same final stack as E07; NVIDIA RTX 5070 Ti
+- Method: batch 2D instance crops through an ImageNet ResNet-18 feature extractor, L2-normalize
+  512-D embeddings, carry float16 descriptors through the standard `Detection3D.id` string, and
+  allow a far 3D association only for dormant same-class objects when cosine similarity is at
+  least 0.90 and exceeds the second-best candidate by at least 0.05.
+- Command: `dimos --replay --replay-db data/go2_short.db --viewer none run
+  unitree-go2-semantic-map-temporal`
+- Descriptor metrics: 207/207 surviving 3D detections described (100% coverage); 5.19 ms mean /
+  10.93 ms p95 per detection. Weights download once from torchvision's public model cache.
+- Perception metrics: 855 input frames at 14.30 source FPS; 572 detector calls at 6.91 Hz; 418
+  2D detections; inference 29.96 ms mean / 53.75 ms p95; 312 detections entered fusion and 207
+  survived (66.35%); fusion 12.70 ms mean / 45.27 ms p95
+- Map metrics: 40 candidates, 27 confirmed, 194 confirmed observations, 80.19% association rate,
+  0.190 m mean centroid standard deviation; nearby same-label pairs were 1/2/5 at
+  0.5/0.75/1.0 m; cached descriptor matching reduced association latency from a rejected trial's
+  9.95 ms mean / 54.97 ms p95 to 0.81 ms mean / 0.95 ms p95
+- Safety result: 0 moved objects and 0 move events on this static replay. A histogram-only trial
+  falsely moved 7 objects; an unconstrained ResNet trial falsely moved 4. Both were rejected.
+  Requiring the candidate to be dormant and unambiguous removed those false relocations.
+- Dependency trial: DimOS's DINOv2 wrapper was evaluated first, but Hugging Face returned HTTP 401
+  for `facebook/dinov2-base` on this host. The injectable interface retains DINO as an option;
+  ResNet-18 is the replayed final default.
+- Conclusion: the pipeline now has end-to-end general-object appearance ReID with measured cost and
+  conservative temporal gating. This static recording proves rejection of false moves, not recall
+  on genuinely moved objects; that needs an annotated move/revisit sequence.
