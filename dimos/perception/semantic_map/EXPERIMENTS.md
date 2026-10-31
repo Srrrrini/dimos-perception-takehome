@@ -50,8 +50,8 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
 - Command: `dimos --replay --replay-db data/go2_short.db --viewer none run
   unitree-go2-semantic-map`
 - Visual artifact: none for this metrics-only run; E00 Rerun remains the visual baseline
-- Perception metrics: 855 input frames at 14.30 source FPS; 566 detector invocations at 6.67
-  aggregate calls/s; inference latency 31.08 ms mean / 64.01 ms p95; 238 2D detections entered
+- Perception metrics: 855 input frames at 14.30 source FPS; 566 unique detector invocations at
+  6.67 calls/s; inference latency 31.08 ms mean / 64.01 ms p95; 238 2D detections entered
   fusion and 173 survived into 3D (72.69%); image/cloud alignment delta 124.23 ms mean / 236.99
   ms p95; fusion latency 9.51 ms mean / 51.85 ms p95
 - Map metrics: 44 candidates, 25 confirmed, 173 observations, 74.57% associated to an existing
@@ -59,10 +59,10 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
   standard deviation; same-label nearby-pair diagnostics were 0 at 0.5 m, 2 at 0.75 m, and 7 at
   1.0 m
 - Qualitative observations: 27.31% of detections entering fusion were lost before 3D output. The
-  236.99 ms p95 image/cloud alignment delta is close to the configured 250 ms tolerance. Detector
-  invocation count differs substantially from fusion and published-map frame counts, consistent
-  with the cold observable being subscribed at multiple output paths; this needs a shared stream
-  measurement/fix before model FPS comparisons.
-- Conclusion: next isolate one inference per selected camera frame and preserve fan-out through a
-  shared detection stream. Then introduce strategy interfaces so detector, lifter, and association
-  variants can be benchmarked against this ledger.
+  236.99 ms p95 image/cloud alignment delta is close to the configured 250 ms tolerance. The
+  detector result is already multicast by DimOS `backpressure()`; its consumers have independent
+  latest-frame queues. Fusion processed fewer frames because its heavier downstream work dropped
+  stale frames, not because YOLO ran once per subscriber.
+- Conclusion: retain the existing shared detector stream. Next introduce strategy interfaces so
+  detector, lifter, and association variants can be benchmarked against this ledger; separately
+  investigate the high image/cloud alignment delta and fusion attrition.
