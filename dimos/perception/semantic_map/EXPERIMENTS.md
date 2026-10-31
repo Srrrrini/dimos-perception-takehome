@@ -266,6 +266,8 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
 - Full artifact: `recordings/20261030-204447-6317-unitree-go2-semantic-map-temporal/rerun.rrd`
   (112 MiB, SHA-256 `00fd881da11eeee07395db895637616e30aaa584fba18182064df5d316ed7791`)
 - Artifact verification: 1 file verified without error; 9,231 chunks, 53 entity paths, 9,268 rows
+- Submission verification: 24 focused tests passed; Ruff and mypy passed; all five semantic-map
+  blueprints, including `unitree-go2-semantic-map-temporal`, were discoverable through `dimos list`
 - Descriptor result: 191/191 surviving 3D detections described; 5.04 ms mean / 9.63 ms p95
 - Map result: 46 candidates, 29 confirmed, 174 confirmed observations, 75.92% association rate;
   nearby same-label duplicate proxies were 0/2/8 at 0.5/0.75/1.0 m

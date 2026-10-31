@@ -41,7 +41,7 @@ Final metrics-only E08 replay:
 - 5.19 ms mean / 10.93 ms p95 appearance extraction per detection.
 - 0 false move events on the static replay; rejected variants produced 7 and 4.
 - Two geometric loop closures; semantic landmark corrections reached 0.110 m in E07.
-- 25 semantic-map tests pass; lint and type checking pass.
+- 24 focused semantic-map, appearance, and lifting tests pass; lint and type checking pass.
 
 The replay has no ground-truth object annotations, so these are runtime, consistency, duplicate
 proxy, and safety measurements—not invented precision/recall claims. A moved-object recall claim
