@@ -10,8 +10,9 @@ swappable modules joined by existing message contracts rather than a monolithic 
   object.
 - The temporal backend tracks active/dormant/moved lifecycle, uses conservative ResNet-18
   appearance ReID for revisits, and exposes `where_is_object()` plus structured metrics.
-- Observations are stored in pose-graph-keyframe coordinates and reprojected after optimization,
-  so loop closure corrects the semantic map instead of leaving landmarks in stale poses.
+- Pose-graph reprojection is deliberately disabled: this replay does not expose a stable,
+  timestamp-matched source keyframe and detections use an accumulated global cloud. Enabling the
+  earlier newest-keyframe approximation would make an unsupported geometry claim.
 
 Detector, appearance encoder, 3D lifter, and map backend are independently factory-selected. Their
 standard boundaries remain `Detection2DArray` and `Detection3DArray`, making later model/fusion
@@ -38,16 +39,20 @@ Size: 112 MiB; 9,231 chunks; 53 entities; verification passed
 Final metrics-only E08 replay:
 
 - 207/207 surviving 3D detections received appearance descriptors.
-- 80.19% observation-to-object association rate.
+- 181/224 valid observations were genuinely fused into existing objects: 80.80% strict accepted-
+  fusion rate. This excludes new tracks and any pending/unaccepted relocation.
 - 0.81 ms mean / 0.95 ms p95 association latency.
 - 5.19 ms mean / 10.93 ms p95 appearance extraction per detection.
-- 0 false move events on the static replay; rejected variants produced 7 and 4.
-- Two geometric loop closures; semantic landmark corrections reached 0.110 m in E07.
-- 24 focused semantic-map, appearance, and lifting tests pass; lint and type checking pass.
+- Zero reported move events on a replay believed to be static; this is not ground-truth proof.
+- Two geometric loop closures were reported by the mapper; no semantic correction claim is made.
+- Zero invalid observations, rejected frames, or detector/lifter/descriptor failures in the final
+  corrected replay.
+- 29 focused semantic-map, appearance, and lifting tests pass; lint and type checking pass.
 
 The replay has no ground-truth object annotations, so these are runtime, consistency, duplicate
 proxy, and safety measurements—not invented precision/recall claims. A moved-object recall claim
 requires an annotated move-and-revisit recording.
 
 Detailed experiment history, including rejected trials, is in
-`dimos/perception/semantic_map/EXPERIMENTS.md`.
+`dimos/perception/semantic_map/EXPERIMENTS.md`. Review-driven corrections and invalidated claims are
+recorded in `dimos/perception/semantic_map/REVIEW_RESPONSE.md`.

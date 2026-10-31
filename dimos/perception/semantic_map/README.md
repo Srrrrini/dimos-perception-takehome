@@ -36,9 +36,10 @@ app.SemanticObjectMap.get_metrics()
 
 ## Decision log
 
-- **Shipped YOLO instead of a new open-vocabulary model:** it is already an offline dependency,
-  starts quickly, and makes replay reproducible. The mapper consumes standard 3D messages, so a
-  different detector can replace it without changing association.
+- **Shipped YOLO instead of a new open-vocabulary model:** it is already integrated in DimOS and
+  starts quickly once its exact weight is cached. A first run may require network access. The
+  mapper consumes standard 3D messages, so another detector can replace it without changing
+  association.
 - **Accumulated LiDAR map instead of a single scan:** the existing `global_map` is denser and is
   already corrected into the `world` frame by the Go2 mapping stack.
 - **World-space same-class proximity instead of raw tracker IDs:** image tracker IDs are
@@ -84,12 +85,15 @@ uses public torchvision ResNet-18 weights; no-op, HSV-histogram, and DimOS DINOv
 remain swappable. Descriptors are float16-encoded into the opaque standard `Detection3D.id` field,
 so the downstream message type remains `Detection3DArray` and plain third-party IDs still decode.
 
-Semantic observations retain their keyframe-local coordinates and are reprojected whenever the Go2
-pose graph updates, including after loop closure. Tracks are merged after correction only when they
-share a label, become spatially close, and have non-overlapping lifetimes. This propagates PGO
-corrections into the semantic layer; it is not a joint object/pose factor graph like SlideSLAM.
-The temporal backend also exposes descriptor-bearing observations so a ReID/shape encoder can be
-added without changing the map API.
+Pose-graph correction is disabled in the final blueprint. The available replay messages do not
+provide a stable, timestamp-matched source keyframe for each object, and detections are lifted from
+an accumulated global cloud; attaching them to the newest keyframe is not geometrically valid. An
+experimental implementation remains behind an explicit opt-in for future timestamped/local
+measurements. See [`REVIEW_RESPONSE.md`](REVIEW_RESPONSE.md) for the required correction design.
+
+The temporal backend exposes descriptor-bearing observations so a ReID/shape encoder can be added
+without changing the map API. The current ID-field transport is documented as a temporary
+interoperability compromise, not the preferred production schema.
 
 ## Submission artifacts
 
@@ -98,3 +102,4 @@ added without changing the map API.
 - [Replay artifact details and regeneration command](evidence/README.md)
 - [Ready-to-paste PR description](PR_DESCRIPTION.md)
 - [Experiment and metrics ledger](EXPERIMENTS.md)
+- [Review response and decision record](REVIEW_RESPONSE.md)
