@@ -2,9 +2,15 @@
 
 ![Final temporal semantic-map replay](final_replay.png)
 
+![Temporal blueprint graph](temporal_blueprint.svg)
+
 The screenshot shows the final `unitree-go2-semantic-map-temporal` blueprint replaying the Go2
 recording. The left side contains the camera stream, odometry, and mapper/pose-graph timing; the
 right side shows the accumulated LiDAR map and persistent labeled 3D semantic objects.
+
+The graph is generated directly by `dimos graph unitree-go2-semantic-map-temporal --rpc`. It
+verifies the blueprint's module, channel, and RPC wiring using the same registry entry used by
+`dimos run`.
 
 The full recording is intentionally not committed because it is 112 MiB. It was generated at:
 

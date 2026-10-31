@@ -21,6 +21,8 @@ comparisons blueprint changes rather than rewrites.
 
 ![Final replay](evidence/final_replay.png)
 
+![Temporal blueprint](evidence/temporal_blueprint.svg)
+
 The screenshot shows the camera, odometry, telemetry, accumulated LiDAR map, and persistent labeled
 3D objects from `unitree-go2-semantic-map-temporal`. A complete replay artifact was also generated
 and verified:
