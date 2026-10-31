@@ -24,6 +24,7 @@ from dimos.msgs.std_msgs.Header import Header
 from dimos.msgs.vision_msgs.Detection3D import Detection3D
 from dimos.msgs.vision_msgs.Detection3DArray import Detection3DArray
 from dimos.perception.semantic_map.module import SemanticObjectMap
+from dimos.perception.semantic_map.tracker import SemanticMapTracker
 
 
 def detection(label: str, x: float, timestamp: float) -> Detection3D:
@@ -92,3 +93,16 @@ def test_unconfirmed_object_is_not_returned(semantic_map: SemanticObjectMap) -> 
 
     assert semantic_map.where_is_object("plant").startswith("No confirmed object")
     assert semantic_map.get_semantic_map().detections_length == 0
+
+
+def test_module_accepts_injected_map_backend() -> None:
+    backend = SemanticMapTracker(association_distance_m=0.25)
+    module = SemanticObjectMap(
+        association_distance_m=0.5,
+        backend=lambda _distance: backend,
+    )
+
+    assert module._tracker is backend
+    assert module.get_metrics()["backend"] == "SemanticMapTracker"
+
+    module.stop()

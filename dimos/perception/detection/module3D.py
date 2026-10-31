@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+from collections.abc import Callable
 import math
 from threading import RLock
 import time
@@ -31,15 +32,23 @@ from dimos.msgs.sensor_msgs.Image import Image
 from dimos.msgs.sensor_msgs.PointCloud2 import PointCloud2
 from dimos.msgs.vision_msgs.Detection2DArray import Detection2DArray
 from dimos.msgs.vision_msgs.Detection3DArray import Detection3DArray
-from dimos.perception.detection.module2D import Detection2DModule
+from dimos.perception.detection.lifter import Detection3DLifter, ProjectedPointCloudLifter
+from dimos.perception.detection.module2D import Config as Detection2DConfig, Detection2DModule
 from dimos.perception.detection.type.detection2d.imageDetections2D import ImageDetections2D
 from dimos.perception.detection.type.detection3d.imageDetections3DPC import ImageDetections3DPC
-from dimos.perception.detection.type.detection3d.pointcloud import Detection3DPC
 from dimos.types.timestamped import align_timestamped
 from dimos.utils.reactive import backpressure
 
 
+class Detection3DConfig(Detection2DConfig):
+    """Configuration with a replaceable camera-LiDAR lifting strategy."""
+
+    lifter: Callable[[], Detection3DLifter] = ProjectedPointCloudLifter
+
+
 class Detection3DModule(Detection2DModule):
+    config: Detection3DConfig
+
     color_image: In[Image]
     pointcloud: In[PointCloud2]
 
@@ -60,6 +69,7 @@ class Detection3DModule(Detection2DModule):
 
     def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         super().__init__(*args, **kwargs)
+        self.lifter = self.config.lifter()
         self._metrics_lock = RLock()
         self._metrics_started_at = time.perf_counter()
         self._input_frames = 0
@@ -109,18 +119,7 @@ class Detection3DModule(Detection2DModule):
                 self._fusion_ms.append((time.perf_counter() - started_at) * 1000.0)
             return ImageDetections3DPC(detections.image, [])
 
-        detection3d_list: list[Detection3DPC] = []
-        for detection in detections:
-            detection3d = Detection3DPC.from_2d(
-                detection,
-                world_pointcloud=pointcloud,
-                camera_info=self.config.camera_info,
-                world_to_optical_transform=transform,
-            )
-            if detection3d is not None:
-                detection3d_list.append(detection3d)
-
-        result = ImageDetections3DPC(detections.image, detection3d_list)
+        result = self.lifter.lift(detections, pointcloud, self.config.camera_info, transform)
         alignment_ms = abs(float(detections.image.ts) - float(pointcloud.ts)) * 1000.0
         with self._metrics_lock:
             self._fusion_calls += 1
@@ -176,6 +175,7 @@ class Detection3DModule(Detection2DModule):
                 "missing_transforms": self._missing_transforms,
                 "alignment_ms": self._distribution(self._alignment_ms),
                 "fusion_ms": self._distribution(self._fusion_ms),
+                "lifter": type(self.lifter).__name__,
             }
 
     def pixel_to_3d(

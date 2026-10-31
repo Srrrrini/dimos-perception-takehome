@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import math
 from threading import RLock
 import time
@@ -33,6 +34,7 @@ from dimos.msgs.geometry_msgs.Vector3 import Vector3
 from dimos.msgs.std_msgs.Header import Header
 from dimos.msgs.vision_msgs.Detection3D import Detection3D
 from dimos.msgs.vision_msgs.Detection3DArray import Detection3DArray
+from dimos.perception.semantic_map.backend import SemanticMapBackend
 from dimos.perception.semantic_map.tracker import (
     ObjectObservation,
     SemanticMapTracker,
@@ -46,6 +48,7 @@ class SemanticObjectMapConfig(ModuleConfig):
 
     association_distance_m: float = 0.75
     min_observations: int = 2
+    backend: Callable[[float], SemanticMapBackend] = SemanticMapTracker
 
 
 class SemanticObjectMap(Module):
@@ -60,7 +63,7 @@ class SemanticObjectMap(Module):
         super().__init__(**kwargs)
         if self.config.min_observations <= 0:
             raise ValueError("min_observations must be positive")
-        self._tracker = SemanticMapTracker(self.config.association_distance_m)
+        self._tracker = self.config.backend(self.config.association_distance_m)
         self._lock = RLock()
         self._metrics_started_at = time.perf_counter()
         self._frames_3d = 0
@@ -125,7 +128,7 @@ class SemanticObjectMap(Module):
         return self._to_message(objects, timestamp, "world")
 
     @rpc
-    def get_metrics(self) -> dict[str, int | float]:
+    def get_metrics(self) -> dict[str, object]:
         """Return replay-friendly map persistence and consistency metrics."""
         with self._lock:
             all_objects = list(self._tracker.objects)
@@ -160,6 +163,7 @@ class SemanticObjectMap(Module):
             "same_label_pairs_within_0_5m": self._near_pairs(confirmed, 0.5),
             "same_label_pairs_within_0_75m": self._near_pairs(confirmed, 0.75),
             "same_label_pairs_within_1_0m": self._near_pairs(confirmed, 1.0),
+            "backend": type(self._tracker).__name__,
         }
 
     @staticmethod

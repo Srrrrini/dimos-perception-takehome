@@ -61,6 +61,11 @@ no object annotations, so claims of precision or recall would be invented.
 survival, camera/cloud alignment, and stage latency. The reproducible experiment history and
 interpretation rules live in [`EXPERIMENTS.md`](EXPERIMENTS.md).
 
+The detector is selected through `Detection2DModule`'s existing detector factory. Camera-LiDAR
+fusion is selected through the `Detection3DLifter` factory, and association/map lifecycle through
+the `SemanticMapBackend` factory. Their standard message boundary remains `Detection3DArray`, so
+variants can be benchmarked without changing the blueprint's downstream contract.
+
 The semantic vocabulary and false positives inherit the detector's limitations. The default COCO
 model can, for example, mislabel large indoor fixtures. LiDAR is sparse on glass, thin furniture,
 and object tops, so box dimensions are visualization aids rather than collision geometry. Dynamic

@@ -66,3 +66,27 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
 - Conclusion: retain the existing shared detector stream. Next introduce strategy interfaces so
   detector, lifter, and association variants can be benchmarked against this ledger; separately
   investigate the high image/cloud alignment delta and fusion attrition.
+
+## E02 — injectable lifter and map backend
+
+- Commit: this strategy-interface commit (resolve with `git log --oneline`)
+- Date: 2026-10-30
+- Dataset/hardware/detector/association: same as E01
+- 3D lifting/config: `ProjectedPointCloudLifter`; same projection and filters as E01, but the
+  world cloud is projected once per detection frame and shared by every 2D instance
+- Command: same as E01
+- Visual artifact: none for this metrics-only run
+- Perception metrics: 855 input frames at 14.30 source FPS; 564 detector calls at 6.72 calls/s;
+  inference 31.11 ms mean / 60.69 ms p95; 244 2D detections entered fusion and 185 survived
+  (75.82%); alignment delta 121.23 ms mean / 233.20 ms p95; fusion latency 10.76 ms mean / 36.35
+  ms p95
+- Map metrics: 40 candidates, 25 confirmed, 185 observations, 78.38% association rate, 6.8
+  confirmed observations/object, 0.172 m mean centroid standard deviation; nearby same-label pair
+  counts were 0 at 0.5 m, 4 at 0.75 m, and 7 at 1.0 m
+- Comparison to E01: p95 fusion latency fell from 51.85 to 36.35 ms and measured 3D survival rose
+  from 72.69% to 75.82%. Mean fusion latency rose from 9.51 to 10.76 ms. Because replay sampling
+  and inference timing vary between runs, these single-run differences are directional rather than
+  a statistical performance claim.
+- Conclusion: the unchanged command works with explicit `Detection3DLifter` and
+  `SemanticMapBackend` boundaries. Detector, fusion, and association variants can now be injected
+  independently while preserving the standard `Detection3DArray` contract.
