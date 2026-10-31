@@ -118,6 +118,7 @@ class SemanticObjectMap(Module):
             f"({obj.position[0]:.2f}, {obj.position[1]:.2f}, {obj.position[2]:.2f}) m "
             f"in world; observations={obj.observation_count}, confidence={obj.confidence:.2f}, "
             f"position_stddev={obj.position_stddev_m:.2f} m"
+            f", state={obj.state.value}, moves={obj.move_count}"
             for obj in matches
         ]
         return "\n".join(descriptions)
@@ -167,6 +168,10 @@ class SemanticObjectMap(Module):
             "same_label_pairs_within_0_75m": self._near_pairs(confirmed, 0.75),
             "same_label_pairs_within_1_0m": self._near_pairs(confirmed, 1.0),
             "backend": type(self._tracker).__name__,
+            "active_objects": sum(obj.state.value == "active" for obj in all_objects),
+            "dormant_objects": sum(obj.state.value == "dormant" for obj in all_objects),
+            "moved_objects": sum(obj.state.value == "moved" for obj in all_objects),
+            "move_events": sum(obj.move_count for obj in all_objects),
         }
 
     @rpc

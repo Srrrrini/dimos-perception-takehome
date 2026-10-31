@@ -170,3 +170,31 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
 - Conclusion: global assignment removes the greedy matcher’s order dependence at negligible
   steady-state cost. Use it in the final blueprint, while keeping the backend injectable. Temporal
   lifecycle and moved-object re-identification remain separate from per-frame assignment.
+
+## E06 — temporal lifecycle and conservative moved-object handling
+
+- Commit: this temporal-tracker commit (resolve with `git log --oneline`)
+- Date: 2026-10-30
+- Dataset/hardware/detector/lifter: same as E05
+- Association/config: E05 global assignment plus active/dormant/moved lifecycle; a same-source
+  relocation requires three spatially coherent observations within two seconds. A matching
+  appearance descriptor can re-identify immediately, but the current replay stream does not
+  provide descriptors.
+- Command: `dimos --replay --replay-db data/go2_short.db --viewer none run
+  unitree-go2-semantic-map-temporal`
+- Perception metrics: 855 input frames at 14.30 source FPS; 567 detector calls at 6.99 Hz;
+  inference 38.33 ms mean / 81.19 ms p95; 284 detections entered fusion and 192 survived
+  (67.61%); fusion 13.88 ms mean / 63.19 ms p95
+- Map metrics: 43 candidates, 29 confirmed, 176 confirmed observations, 77.60% association rate,
+  0.148 m mean centroid standard deviation; nearby same-label pairs were 0/3/8 at
+  0.5/0.75/1.0 m; association latency was 1.49 ms mean / 0.19 ms p95
+- Lifecycle metrics at shutdown: 5 active, 38 dormant, 0 moved, 0 move events. Earlier trial
+  variants that trusted a single source-track jump reported 2 and 3 move events on this static
+  replay; requiring three coherent observations removed those false move claims.
+- Loop closure observation: the Go2 pose-graph backend detected two geometric loop closures.
+  Semantic observations currently store world coordinates rather than keyframe-relative
+  measurements, so they are not retroactively corrected when the pose graph changes.
+- Conclusion: lifecycle and moved-object identity are now explicit and unit-tested without
+  overstating what this unannotated, static replay proves. Full semantic loop closure requires
+  keyframe-anchored observations and propagation of pose-graph corrections; long-term moved-object
+  re-identification requires detector descriptors or crops at the observation boundary.

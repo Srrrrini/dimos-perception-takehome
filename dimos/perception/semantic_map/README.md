@@ -69,5 +69,16 @@ variants can be benchmarked without changing the blueprint's downstream contract
 The semantic vocabulary and false positives inherit the detector's limitations. The default COCO
 model can, for example, mislabel large indoor fixtures. LiDAR is sparse on glass, thin furniture,
 and object tops, so box dimensions are visualization aids rather than collision geometry. Dynamic
-objects are retained like other semantic objects; a production system should add motion state and
-expiration policy.
+objects need evidence beyond a single tracker-ID jump before their persistent identity is moved.
+
+The `unitree-go2-semantic-map-temporal` blueprint combines YOLO11 segmentation, hybrid mask/box
+lifting, global one-to-one assignment, and explicit active/dormant/moved lifecycle. Static objects
+seen after a long gap retain their identity by class and world position. A moved object retains its
+identity only after three coherent same-source observations or an injected appearance-descriptor
+match; ambiguous revisits create a new object instead of silently corrupting the map.
+
+This is not yet full semantic loop closure. The Go2 pose graph corrects the geometric map, but
+semantic observations are stored directly in world coordinates. A complete backend should retain
+each observation in its keyframe coordinates and reproject or jointly optimize semantic landmarks
+after pose-graph updates. The temporal backend deliberately exposes descriptor-bearing
+observations so a ReID/shape encoder can be added without changing the map API.

@@ -18,6 +18,8 @@ from dimos.perception.semantic_map.tracker import (
     GlobalAssignmentSemanticMapTracker,
     ObjectObservation,
     SemanticMapTracker,
+    TemporalSemanticMapTracker,
+    TrackState,
 )
 
 
@@ -26,6 +28,7 @@ def observation(
     x: float,
     timestamp: float,
     track_id: str = "",
+    descriptor: tuple[float, ...] = (),
 ) -> ObjectObservation:
     return ObjectObservation(
         label=label,
@@ -34,6 +37,7 @@ def observation(
         confidence=0.8,
         timestamp=timestamp,
         source_track_id=track_id,
+        descriptor=descriptor,
     )
 
 
@@ -105,3 +109,65 @@ def test_global_assignment_uses_source_track_as_bounded_tiebreaker() -> None:
 
     assert updated[0].source_track_id == "left"
     assert updated[1].source_track_id == "right"
+
+
+def test_temporal_tracker_revisits_stationary_object_without_new_identity() -> None:
+    tracker = TemporalSemanticMapTracker(association_distance_m=0.5, dormant_after_s=5.0)
+    original = tracker.update([observation("chair", 1.0, 1.0, "old")])[0]
+
+    revisited = tracker.update([observation("chair", 1.1, 20.0, "new")])[0]
+
+    assert revisited is original
+    assert len(tracker.objects) == 1
+    assert revisited.state == TrackState.ACTIVE
+
+
+def test_temporal_tracker_preserves_identity_and_marks_moved_object() -> None:
+    tracker = TemporalSemanticMapTracker(association_distance_m=0.5, dormant_after_s=5.0)
+    original = tracker.update([observation("chair", 1.0, 1.0, "persistent")])[0]
+
+    first_proposal = tracker.update([observation("chair", 3.0, 2.0, "persistent")])[0]
+    assert first_proposal.state == TrackState.ACTIVE
+    assert first_proposal.move_count == 0
+    tracker.update([observation("chair", 3.1, 2.5, "persistent")])
+    moved = tracker.update([observation("chair", 3.0, 3.0, "persistent")])[0]
+
+    assert moved is original
+    assert len(tracker.objects) == 1
+    assert moved.position == (3.0, 2.0, 0.5)
+    assert moved.state == TrackState.MOVED
+    assert moved.move_count == 1
+
+
+def test_temporal_tracker_rejects_single_frame_move_jump() -> None:
+    tracker = TemporalSemanticMapTracker(association_distance_m=0.5, dormant_after_s=5.0)
+    original = tracker.update([observation("chair", 1.0, 1.0, "persistent")])[0]
+
+    tracker.update([observation("chair", 3.0, 2.0, "persistent")])
+
+    assert original.position == (1.0, 2.0, 0.5)
+    assert original.state == TrackState.ACTIVE
+    assert original.move_count == 0
+
+
+def test_temporal_tracker_does_not_guess_ambiguous_moved_identity() -> None:
+    tracker = TemporalSemanticMapTracker(association_distance_m=0.5, dormant_after_s=5.0)
+    tracker.update([observation("chair", 1.0, 1.0, "old")])
+
+    tracker.update([observation("chair", 3.0, 10.0, "new")])
+
+    assert len(tracker.objects) == 2
+
+
+def test_temporal_tracker_reidentifies_moved_object_from_descriptor() -> None:
+    tracker = TemporalSemanticMapTracker(association_distance_m=0.5, dormant_after_s=5.0)
+    original = tracker.update(
+        [observation("chair", 1.0, 1.0, "old", descriptor=(1.0, 0.0))]
+    )[0]
+
+    moved = tracker.update(
+        [observation("chair", 3.0, 10.0, "new", descriptor=(0.99, 0.01))]
+    )[0]
+
+    assert moved is original
+    assert moved.state == TrackState.MOVED
