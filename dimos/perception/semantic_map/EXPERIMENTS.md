@@ -90,3 +90,29 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
 - Conclusion: the unchanged command works with explicit `Detection3DLifter` and
   `SemanticMapBackend` boundaries. Detector, fusion, and association variants can now be injected
   independently while preserving the standard `Detection3DArray` contract.
+
+## E03 — YOLO11n instance masks
+
+- Commit: this segmentation-variant commit (resolve with `git log --oneline`)
+- Date: 2026-10-30
+- Dataset/hardware/lifter/association: same as E02
+- Detector/config: YOLO11n-seg, confidence 0.5, IoU 0.6, input cap 10 Hz; official Ultralytics
+  weight is downloaded on first use when it is not in the DimOS model directory
+- Command: `dimos --replay --replay-db data/go2_short.db --viewer none run
+  unitree-go2-semantic-map-seg`
+- Visual artifact: none for this metrics-only run
+- Perception metrics: 855 input frames at 14.30 source FPS; 564 detector calls at 7.07 calls/s;
+  394 total 2D detections; inference 34.40 ms mean / 60.77 ms p95 (1.89 s cold-start maximum);
+  301 2D detections entered fusion and 121 survived (40.20%); alignment 122.76 ms mean / 233.23
+  ms p95; fusion 10.95 ms mean / 37.79 ms p95
+- Map metrics: 38 candidates, 23 confirmed, 106 confirmed observations, 68.60% association rate,
+  4.61 confirmed observations/object, 0.128 m mean centroid standard deviation; nearby same-label
+  pair counts were 0 at 0.5 m, 2 at 0.75 m, and 2 at 1.0 m
+- Comparison to E02: the mask model produced substantially more 2D detections (394 total; 301
+  reached fusion versus 244 in E02), but 3D survival fell from 75.82% to 40.20% and confirmed
+  observations fell from 185 to 106. Inference p95 was effectively unchanged; the first model
+  invocation caused the large cold-start maximum.
+- Conclusion: instance masks expose more shelf candidates and reject background LiDAR points, but
+  the accumulated cloud is too sparse or temporally misaligned inside many small masks. Keep this
+  as an optional blueprint, not the default. Next evaluate a hybrid mask-plus-box fallback and
+  explicitly measure how many masks lack enough projected points.

@@ -41,6 +41,9 @@ from dimos.perception.semantic_map.tracker import (
     SemanticObject,
 )
 from dimos.types.timestamped import to_timestamp
+from dimos.utils.logging_config import setup_logger
+
+logger = setup_logger()
 
 
 class SemanticObjectMapConfig(ModuleConfig):
@@ -165,6 +168,11 @@ class SemanticObjectMap(Module):
             "same_label_pairs_within_1_0m": self._near_pairs(confirmed, 1.0),
             "backend": type(self._tracker).__name__,
         }
+
+    @rpc
+    def stop(self) -> None:
+        logger.info("Semantic map replay metrics", metrics=self.get_metrics())
+        super().stop()
 
     @staticmethod
     def _percentile(values: list[float], fraction: float) -> float:

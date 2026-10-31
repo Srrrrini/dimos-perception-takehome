@@ -28,14 +28,19 @@ class Yolo2DDetector(Detector):
         model_path: str = "models_yolo",
         model_name: str = "yolo11n.pt",
         device: str | None = None,
+        task: str = "detect",
+        conf: float = 0.5,
+        iou: float = 0.6,
+        download_if_missing: bool = False,
     ) -> None:
         # ~0.5s: deferred to keep module import (test collection) light.
         from ultralytics import YOLO  # type: ignore[attr-defined]
 
-        self.model = YOLO(
-            get_data(model_path) / model_name,
-            task="detect",
-        )
+        model_file = get_data(model_path) / model_name
+        model_source = model_name if download_if_missing and not model_file.exists() else model_file
+        self.model = YOLO(model_source, task=task)
+        self.conf = conf
+        self.iou = iou
 
         if device:
             self.device = device
@@ -61,8 +66,8 @@ class Yolo2DDetector(Detector):
         results = self.model.track(
             source=image.to_opencv(),
             device=self.device,
-            conf=0.5,
-            iou=0.6,
+            conf=self.conf,
+            iou=self.iou,
             persist=True,
             verbose=False,
         )
@@ -82,3 +87,15 @@ class Yolo2DDetector(Detector):
                         if hasattr(gmc, "executor") and gmc.executor is not None:
                             gmc.executor.shutdown(wait=True)
             self.model.predictor = None
+
+
+class Yolo11Seg2DDetector(Yolo2DDetector):
+    """YOLO11n instance segmentation with the standard detector interface."""
+
+    def __init__(self, device: str | None = None) -> None:
+        super().__init__(
+            model_name="yolo11n-seg.pt",
+            device=device,
+            task="segment",
+            download_if_missing=True,
+        )

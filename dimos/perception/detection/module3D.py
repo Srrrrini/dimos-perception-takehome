@@ -37,7 +37,10 @@ from dimos.perception.detection.module2D import Config as Detection2DConfig, Det
 from dimos.perception.detection.type.detection2d.imageDetections2D import ImageDetections2D
 from dimos.perception.detection.type.detection3d.imageDetections3DPC import ImageDetections3DPC
 from dimos.types.timestamped import align_timestamped
+from dimos.utils.logging_config import setup_logger
 from dimos.utils.reactive import backpressure
+
+logger = setup_logger()
 
 
 class Detection3DConfig(Detection2DConfig):
@@ -282,6 +285,7 @@ class Detection3DModule(Detection2DModule):
 
     @rpc
     def stop(self) -> None:
+        logger.info("Perception replay metrics", metrics=self.get_perception_metrics())
         super().stop()
 
     def _publish_detections(self, detections: ImageDetections3DPC) -> None:
