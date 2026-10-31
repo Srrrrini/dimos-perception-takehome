@@ -13,6 +13,10 @@
 # limitations under the License.
 
 
+import math
+from threading import RLock
+import time
+
 from reactivex import operators as ops
 from reactivex.observable import Observable
 
@@ -54,13 +58,55 @@ class Detection3DModule(Detection2DModule):
 
     detection_3d_stream: Observable[ImageDetections3DPC] | None = None
 
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        super().__init__(*args, **kwargs)
+        self._metrics_lock = RLock()
+        self._metrics_started_at = time.perf_counter()
+        self._input_frames = 0
+        self._first_input_ts: float | None = None
+        self._last_input_ts: float | None = None
+        self._inference_calls = 0
+        self._detections_2d = 0
+        self._inference_ms: list[float] = []
+        self._fusion_calls = 0
+        self._fusion_detections_2d = 0
+        self._fusion_detections_3d = 0
+        self._missing_transforms = 0
+        self._alignment_ms: list[float] = []
+        self._fusion_ms: list[float] = []
+
+    def _observe_input(self, image: Image) -> None:
+        timestamp = float(image.ts)
+        with self._metrics_lock:
+            self._input_frames += 1
+            if self._first_input_ts is None:
+                self._first_input_ts = timestamp
+            self._last_input_ts = timestamp
+
+    def process_image_frame(self, image: Image) -> ImageDetections2D:
+        """Run the configured detector and record its effective replay cost."""
+        started_at = time.perf_counter()
+        detections = super().process_image_frame(image)
+        elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+        with self._metrics_lock:
+            self._inference_calls += 1
+            self._detections_2d += len(detections)
+            self._inference_ms.append(elapsed_ms)
+        return detections
+
     def process_frame(
         self,
         detections: ImageDetections2D,
         pointcloud: PointCloud2,
         transform: Transform | None,
     ) -> ImageDetections3DPC:
+        started_at = time.perf_counter()
         if not transform:
+            with self._metrics_lock:
+                self._fusion_calls += 1
+                self._fusion_detections_2d += len(detections)
+                self._missing_transforms += 1
+                self._fusion_ms.append((time.perf_counter() - started_at) * 1000.0)
             return ImageDetections3DPC(detections.image, [])
 
         detection3d_list: list[Detection3DPC] = []
@@ -74,7 +120,63 @@ class Detection3DModule(Detection2DModule):
             if detection3d is not None:
                 detection3d_list.append(detection3d)
 
-        return ImageDetections3DPC(detections.image, detection3d_list)
+        result = ImageDetections3DPC(detections.image, detection3d_list)
+        alignment_ms = abs(float(detections.image.ts) - float(pointcloud.ts)) * 1000.0
+        with self._metrics_lock:
+            self._fusion_calls += 1
+            self._fusion_detections_2d += len(detections)
+            self._fusion_detections_3d += len(result)
+            self._alignment_ms.append(alignment_ms)
+            self._fusion_ms.append((time.perf_counter() - started_at) * 1000.0)
+        return result
+
+    @staticmethod
+    def _distribution(values: list[float]) -> dict[str, float]:
+        if not values:
+            return {"mean": 0.0, "p50": 0.0, "p95": 0.0, "max": 0.0}
+        ordered = sorted(values)
+
+        def percentile(fraction: float) -> float:
+            index = min(len(ordered) - 1, math.ceil(fraction * len(ordered)) - 1)
+            return ordered[index]
+
+        return {
+            "mean": sum(ordered) / len(ordered),
+            "p50": percentile(0.50),
+            "p95": percentile(0.95),
+            "max": ordered[-1],
+        }
+
+    @rpc
+    def get_perception_metrics(self) -> dict[str, object]:
+        """Return detector and 2D-to-3D replay throughput metrics."""
+        with self._metrics_lock:
+            elapsed_s = max(time.perf_counter() - self._metrics_started_at, 1e-9)
+            sensor_span_s = (
+                self._last_input_ts - self._first_input_ts
+                if self._first_input_ts is not None and self._last_input_ts is not None
+                else 0.0
+            )
+            return {
+                "input_frames": self._input_frames,
+                "sensor_span_s": sensor_span_s,
+                "source_fps": self._input_frames / sensor_span_s if sensor_span_s > 0 else 0.0,
+                "inference_calls": self._inference_calls,
+                "effective_inference_hz": self._inference_calls / elapsed_s,
+                "detections_2d": self._detections_2d,
+                "inference_ms": self._distribution(self._inference_ms),
+                "fusion_calls": self._fusion_calls,
+                "fusion_detections_2d": self._fusion_detections_2d,
+                "fusion_detections_3d": self._fusion_detections_3d,
+                "fusion_survival_ratio": (
+                    self._fusion_detections_3d / self._fusion_detections_2d
+                    if self._fusion_detections_2d
+                    else 0.0
+                ),
+                "missing_transforms": self._missing_transforms,
+                "alignment_ms": self._distribution(self._alignment_ms),
+                "fusion_ms": self._distribution(self._fusion_ms),
+            }
 
     def pixel_to_3d(
         self,
@@ -162,6 +264,7 @@ class Detection3DModule(Detection2DModule):
     @rpc
     def start(self) -> None:
         super().start()
+        self.color_image.subscribe(self._observe_input)
 
         def detection2d_to_3d(args):  # type: ignore[no-untyped-def]
             detections, pc = args

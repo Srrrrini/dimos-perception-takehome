@@ -75,7 +75,14 @@ def test_module_confirms_publishes_and_queries_persistent_object(
     ]
     assert "chair" in semantic_map.where_is_object("chair")
     assert "(1.10, 2.00, 0.50) m in world" in semantic_map.where_is_object("chair")
-    assert semantic_map.get_metrics()["confirmed_objects"] == 1
+    metrics = semantic_map.get_metrics()
+    assert metrics["confirmed_objects"] == 1
+    assert metrics["frames_3d"] == 2
+    assert metrics["observations_in"] == 2
+    assert metrics["matched_observations"] == 1
+    assert metrics["new_tracks"] == 1
+    assert metrics["association_rate"] == 0.5
+    assert metrics["same_label_pairs_within_1_0m"] == 0
 
 
 def test_unconfirmed_object_is_not_returned(semantic_map: SemanticObjectMap) -> None:

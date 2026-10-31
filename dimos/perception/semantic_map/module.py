@@ -16,7 +16,9 @@
 
 from __future__ import annotations
 
+import math
 from threading import RLock
+import time
 
 from dimos_lcm.vision_msgs import BoundingBox3D, ObjectHypothesis, ObjectHypothesisWithPose
 from reactivex.disposable import Disposable
@@ -60,6 +62,12 @@ class SemanticObjectMap(Module):
             raise ValueError("min_observations must be positive")
         self._tracker = SemanticMapTracker(self.config.association_distance_m)
         self._lock = RLock()
+        self._metrics_started_at = time.perf_counter()
+        self._frames_3d = 0
+        self._observations_in = 0
+        self._matched_observations = 0
+        self._new_tracks = 0
+        self._association_ms: list[float] = []
 
     @rpc
     def start(self) -> None:
@@ -67,15 +75,24 @@ class SemanticObjectMap(Module):
         self.register_disposable(Disposable(self.detections_3d.subscribe(self._on_detections)))
 
     def _on_detections(self, message: Detection3DArray) -> None:
+        started_at = time.perf_counter()
         observations = [
             observation
             for detection in message.detections[: message.detections_length]
             if (observation := self._to_observation(detection, message.ts)) is not None
         ]
+        with self._lock:
+            self._frames_3d += 1
+            self._observations_in += len(observations)
         if not observations:
             return
         with self._lock:
+            objects_before = len(self._tracker.objects)
             self._tracker.update(observations)
+            created = len(self._tracker.objects) - objects_before
+            self._new_tracks += created
+            self._matched_observations += len(observations) - created
+            self._association_ms.append((time.perf_counter() - started_at) * 1000.0)
             mapped = self._tracker.confirmed(self.config.min_observations)
         self.semantic_map.publish(self._to_message(mapped, message.ts, message.frame_id))
 
@@ -113,18 +130,55 @@ class SemanticObjectMap(Module):
         with self._lock:
             all_objects = list(self._tracker.objects)
             confirmed = self._tracker.confirmed(self.config.min_observations)
+            frames_3d = self._frames_3d
+            observations_in = self._observations_in
+            matched_observations = self._matched_observations
+            new_tracks = self._new_tracks
+            association_ms = list(self._association_ms)
         observations = sum(obj.observation_count for obj in confirmed)
         deviations = [obj.position_stddev_m for obj in confirmed]
         lifetimes = [obj.last_seen - obj.first_seen for obj in confirmed]
         return {
             "candidate_objects": len(all_objects),
             "confirmed_objects": len(confirmed),
+            "confirmation_ratio": len(confirmed) / len(all_objects) if all_objects else 0.0,
+            "frames_3d": frames_3d,
+            "observations_in": observations_in,
+            "matched_observations": matched_observations,
+            "new_tracks": new_tracks,
+            "association_rate": matched_observations / observations_in if observations_in else 0.0,
+            "new_track_rate": new_tracks / observations_in if observations_in else 0.0,
             "confirmed_observations": observations,
             "mean_observations_per_object": observations / len(confirmed) if confirmed else 0.0,
             "mean_position_stddev_m": sum(deviations) / len(deviations) if deviations else 0.0,
             "max_position_stddev_m": max(deviations, default=0.0),
             "max_observed_track_duration_s": max(lifetimes, default=0.0),
+            "association_ms_mean": (
+                sum(association_ms) / len(association_ms) if association_ms else 0.0
+            ),
+            "association_ms_p95": self._percentile(association_ms, 0.95),
+            "same_label_pairs_within_0_5m": self._near_pairs(confirmed, 0.5),
+            "same_label_pairs_within_0_75m": self._near_pairs(confirmed, 0.75),
+            "same_label_pairs_within_1_0m": self._near_pairs(confirmed, 1.0),
         }
+
+    @staticmethod
+    def _percentile(values: list[float], fraction: float) -> float:
+        if not values:
+            return 0.0
+        ordered = sorted(values)
+        return ordered[min(len(ordered) - 1, math.ceil(fraction * len(ordered)) - 1)]
+
+    @staticmethod
+    def _near_pairs(objects: list[SemanticObject], threshold_m: float) -> int:
+        """Count same-label nearby pairs as a duplicate diagnostic, not ground truth."""
+        return sum(
+            1
+            for index, left in enumerate(objects)
+            for right in objects[index + 1 :]
+            if left.label.casefold() == right.label.casefold()
+            and math.dist(left.position, right.position) <= threshold_m
+        )
 
     @staticmethod
     def _to_observation(detection: Detection3D, fallback_ts: float) -> ObjectObservation | None:
