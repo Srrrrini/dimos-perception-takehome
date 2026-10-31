@@ -90,3 +90,10 @@ share a label, become spatially close, and have non-overlapping lifetimes. This 
 corrections into the semantic layer; it is not a joint object/pose factor graph like SlideSLAM.
 The temporal backend also exposes descriptor-bearing observations so a ReID/shape encoder can be
 added without changing the map API.
+
+## Submission artifacts
+
+- [Final replay screenshot](evidence/final_replay.png)
+- [Replay artifact details and regeneration command](evidence/README.md)
+- [Ready-to-paste PR description](PR_DESCRIPTION.md)
+- [Experiment and metrics ledger](EXPERIMENTS.md)
