@@ -107,22 +107,26 @@ class SemanticMapTracker:
         for observation in observations:
             match = self._nearest_match(observation, claimed)
             if match is None:
-                match = SemanticObject(
-                    object_id=uuid.uuid4().hex,
-                    label=observation.label,
-                    position=observation.position,
-                    size=observation.size,
-                    confidence=observation.confidence,
-                    first_seen=observation.timestamp,
-                    last_seen=observation.timestamp,
-                    source_track_id=observation.source_track_id,
-                )
-                self._objects[match.object_id] = match
+                match = self._new_object(observation)
             else:
                 match.update(observation)
             claimed.add(match.object_id)
             updated.append(match)
         return updated
+
+    def _new_object(self, observation: ObjectObservation) -> SemanticObject:
+        obj = SemanticObject(
+            object_id=uuid.uuid4().hex,
+            label=observation.label,
+            position=observation.position,
+            size=observation.size,
+            confidence=observation.confidence,
+            first_seen=observation.timestamp,
+            last_seen=observation.timestamp,
+            source_track_id=observation.source_track_id,
+        )
+        self._objects[obj.object_id] = obj
+        return obj
 
     def confirmed(self, min_observations: int) -> list[SemanticObject]:
         """Return stable objects in deterministic insertion order."""
@@ -155,3 +159,54 @@ class SemanticMapTracker:
         if math.dist(nearest.position, observation.position) > self.association_distance_m:
             return None
         return nearest
+
+
+class GlobalAssignmentSemanticMapTracker(SemanticMapTracker):
+    """Globally minimize gated same-label association cost for each frame."""
+
+    def update(self, observations: list[ObjectObservation]) -> list[SemanticObject]:
+        if not observations:
+            return []
+
+        from scipy.optimize import linear_sum_assignment
+
+        existing = list(self._objects.values())
+        if not existing:
+            return [self._new_object(observation) for observation in observations]
+
+        invalid_cost = 1_000_000.0
+        costs = [
+            [self._association_cost(observation, obj, invalid_cost) for obj in existing]
+            for observation in observations
+        ]
+        rows, columns = linear_sum_assignment(costs)
+        assignments = {
+            int(row): existing[int(column)]
+            for row, column in zip(rows, columns, strict=True)
+            if costs[int(row)][int(column)] < invalid_cost
+        }
+
+        updated: list[SemanticObject] = []
+        for index, observation in enumerate(observations):
+            match = assignments.get(index)
+            if match is None:
+                match = self._new_object(observation)
+            else:
+                match.update(observation)
+            updated.append(match)
+        return updated
+
+    def _association_cost(
+        self,
+        observation: ObjectObservation,
+        obj: SemanticObject,
+        invalid_cost: float,
+    ) -> float:
+        if obj.label.casefold() != observation.label.casefold():
+            return invalid_cost
+        distance = math.dist(obj.position, observation.position)
+        if distance > self.association_distance_m:
+            return invalid_cost
+        if observation.source_track_id and observation.source_track_id == obj.source_track_id:
+            distance -= min(0.25, self.association_distance_m * 0.25)
+        return distance

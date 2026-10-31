@@ -14,7 +14,11 @@
 
 import pytest
 
-from dimos.perception.semantic_map.tracker import ObjectObservation, SemanticMapTracker
+from dimos.perception.semantic_map.tracker import (
+    GlobalAssignmentSemanticMapTracker,
+    ObjectObservation,
+    SemanticMapTracker,
+)
 
 
 def observation(
@@ -71,3 +75,33 @@ def test_far_observations_create_distinct_objects_and_query_confirmed_only() -> 
 
     assert len(tracker.find("chair", min_observations=2)) == 1
     assert tracker.find("air", min_observations=2)[0].observation_count == 2
+
+
+def test_global_assignment_avoids_order_dependent_duplicate() -> None:
+    tracker = GlobalAssignmentSemanticMapTracker(association_distance_m=0.35)
+    tracker.update([observation("chair", 0.0, 1.0), observation("chair", 0.4, 1.0)])
+
+    tracker.update([observation("chair", 0.3, 2.0), observation("chair", 0.6, 2.0)])
+
+    assert len(tracker.objects) == 2
+    assert [obj.observation_count for obj in tracker.objects] == [2, 2]
+
+
+def test_global_assignment_uses_source_track_as_bounded_tiebreaker() -> None:
+    tracker = GlobalAssignmentSemanticMapTracker(association_distance_m=1.0)
+    tracker.update(
+        [
+            observation("chair", 0.0, 1.0, "left"),
+            observation("chair", 0.4, 1.0, "right"),
+        ]
+    )
+
+    updated = tracker.update(
+        [
+            observation("chair", 0.25, 2.0, "left"),
+            observation("chair", 0.15, 2.0, "right"),
+        ]
+    )
+
+    assert updated[0].source_track_id == "left"
+    assert updated[1].source_track_id == "right"

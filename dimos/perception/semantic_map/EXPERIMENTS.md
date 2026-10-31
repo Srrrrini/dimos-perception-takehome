@@ -145,3 +145,28 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
   supported objects. Raw mask sparsity explains only 20 of 145 fallbacks; filter rejection is the
   larger loss source. Keep the hybrid as an experimental option until visual inspection and an
   association improvement distinguish recovered shelf objects from duplicate landmarks.
+
+## E05 — global one-to-one association
+
+- Commit: this global-assignment commit (resolve with `git log --oneline`)
+- Date: 2026-10-30
+- Dataset/hardware/detector/lifter: same as E04
+- Association/config: Hungarian minimum-cost assignment over all observations and existing objects
+  per frame; same-label 0.75 m gate with a bounded source-track-ID preference
+- Command: `dimos --replay --replay-db data/go2_short.db --viewer none run
+  unitree-go2-semantic-map-assignment`
+- Visual artifact: the immediately preceding hybrid Rerun was inspected live; the shelf scene
+  confirms broad COCO labels but not individual grocery SKU coverage
+- Perception metrics: 855 input frames at 14.30 source FPS; 569 detector calls; 409 total 2D
+  detections; inference 32.40 ms mean / 67.07 ms p95; 305 detections entered fusion and 192
+  survived (62.95%); fusion 11.21 ms mean / 37.85 ms p95
+- Map metrics: 44 candidates, 29 confirmed, 177 confirmed observations, 77.08% association rate,
+  6.10 confirmed observations/object, 0.181 m mean centroid standard deviation; nearby same-label
+  pair counts were 1 at 0.5 m, 3 at 0.75 m, and 7 at 1.0 m; association latency was 2.91 ms mean /
+  0.13 ms p95 (mean includes the one-time lazy SciPy import)
+- Comparison to E04: candidate objects fell from 46 to 44 and duplicate proxies from 2/4/8 to
+  1/3/7, while confirmed-object count remained 29. Perception counts varied between replays, so
+  this is directional evidence; deterministic unit tests cover the order-dependent failure case.
+- Conclusion: global assignment removes the greedy matcher’s order dependence at negligible
+  steady-state cost. Use it in the final blueprint, while keeping the backend injectable. Temporal
+  lifecycle and moved-object re-identification remain separate from per-frame assignment.

@@ -20,6 +20,7 @@ from dimos.perception.detection.detectors.yolo import Yolo11Seg2DDetector
 from dimos.perception.detection.lifter import HybridMaskBoxLifter
 from dimos.perception.detection.module3D import Detection3DModule
 from dimos.perception.semantic_map.module import SemanticObjectMap
+from dimos.perception.semantic_map.tracker import GlobalAssignmentSemanticMapTracker
 from dimos.robot.unitree.go2.blueprints.smart.unitree_go2 import unitree_go2
 from dimos.robot.unitree.go2.connection import GO2Connection
 
@@ -55,6 +56,20 @@ unitree_go2_semantic_map_hybrid = (
             lifter=HybridMaskBoxLifter,
         ),
         SemanticObjectMap.blueprint(),
+    )
+    .remappings([(Detection3DModule, "pointcloud", "global_map")])
+    .global_config(n_workers=12, robot_model="unitree_go2")
+)
+
+unitree_go2_semantic_map_assignment = (
+    autoconnect(
+        unitree_go2,
+        Detection3DModule.blueprint(
+            camera_info=GO2Connection.camera_info_static,
+            detector=Yolo11Seg2DDetector,
+            lifter=HybridMaskBoxLifter,
+        ),
+        SemanticObjectMap.blueprint(backend=GlobalAssignmentSemanticMapTracker),
     )
     .remappings([(Detection3DModule, "pointcloud", "global_map")])
     .global_config(n_workers=12, robot_model="unitree_go2")
