@@ -25,7 +25,13 @@ class SemanticMapBackend(Protocol):
     @property
     def objects(self) -> tuple[SemanticObject, ...]: ...
 
+    graph_corrections: int
+    graph_merges: int
+    max_graph_correction_m: float
+
     def update(self, observations: list[ObjectObservation]) -> list[SemanticObject]: ...
+
+    def apply_keyframe_poses(self, poses: tuple[tuple[float, ...], ...]) -> None: ...
 
     def confirmed(self, min_observations: int) -> list[SemanticObject]: ...
 

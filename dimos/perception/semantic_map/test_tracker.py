@@ -17,6 +17,7 @@ import pytest
 from dimos.perception.semantic_map.tracker import (
     GlobalAssignmentSemanticMapTracker,
     ObjectObservation,
+    PositionSample,
     SemanticMapTracker,
     TemporalSemanticMapTracker,
     TrackState,
@@ -123,14 +124,20 @@ def test_temporal_tracker_revisits_stationary_object_without_new_identity() -> N
 
 
 def test_temporal_tracker_preserves_identity_and_marks_moved_object() -> None:
-    tracker = TemporalSemanticMapTracker(association_distance_m=0.5, dormant_after_s=5.0)
+    tracker = TemporalSemanticMapTracker(
+        association_distance_m=0.5,
+        dormant_after_s=5.0,
+        allow_source_track_relocation=True,
+    )
     original = tracker.update([observation("chair", 1.0, 1.0, "persistent")])[0]
 
     first_proposal = tracker.update([observation("chair", 3.0, 2.0, "persistent")])[0]
     assert first_proposal.state == TrackState.ACTIVE
     assert first_proposal.move_count == 0
-    tracker.update([observation("chair", 3.1, 2.5, "persistent")])
-    moved = tracker.update([observation("chair", 3.0, 3.0, "persistent")])[0]
+    tracker.update([observation("chair", 3.1, 2.2, "persistent")])
+    tracker.update([observation("chair", 3.0, 2.4, "persistent")])
+    tracker.update([observation("chair", 3.1, 2.6, "persistent")])
+    moved = tracker.update([observation("chair", 3.0, 2.8, "persistent")])[0]
 
     assert moved is original
     assert len(tracker.objects) == 1
@@ -171,3 +178,56 @@ def test_temporal_tracker_reidentifies_moved_object_from_descriptor() -> None:
 
     assert moved is original
     assert moved.state == TrackState.MOVED
+
+
+def test_pose_graph_correction_reprojects_anchored_observations() -> None:
+    tracker = TemporalSemanticMapTracker(association_distance_m=0.5)
+    anchored = ObjectObservation(
+        label="chair",
+        position=(2.0, 0.0, 0.5),
+        size=(1.0, 1.0, 1.0),
+        confidence=0.9,
+        timestamp=1.0,
+        anchor_keyframe=0,
+        anchor_position=(1.0, 0.0, 0.5),
+    )
+    obj = tracker.update([anchored])[0]
+
+    tracker.apply_keyframe_poses(((2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),))
+
+    assert obj.position == (3.0, 0.0, 0.5)
+    assert tracker.max_graph_correction_m == 1.0
+
+
+def test_pose_graph_correction_merges_only_non_overlapping_duplicate_tracks() -> None:
+    tracker = TemporalSemanticMapTracker(association_distance_m=0.5)
+    tracker.update([observation("chair", 0.0, 1.0, "old")])
+    tracker.update([observation("chair", 2.0, 10.0, "new")])
+    objects = list(tracker.objects)
+    objects[1].position_samples = [
+        PositionSample((2.0, 2.0, 0.5), 0, (0.2, 0.0, 0.5))
+    ]
+
+    tracker.apply_keyframe_poses(((0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0),))
+
+    assert len(tracker.objects) == 1
+    assert tracker.graph_merges == 1
+
+
+def test_pose_graph_correction_keeps_simultaneous_nearby_objects_separate() -> None:
+    tracker = TemporalSemanticMapTracker(association_distance_m=0.5)
+    tracker.update(
+        [
+            observation("chair", 0.0, 1.0, "left"),
+            observation("chair", 1.0, 1.0, "right"),
+        ]
+    )
+    objects = list(tracker.objects)
+    objects[1].position_samples = [
+        PositionSample((1.0, 2.0, 0.5), 0, (0.2, 0.0, 0.5))
+    ]
+
+    tracker.apply_keyframe_poses(((0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0),))
+
+    assert len(tracker.objects) == 2
+    assert tracker.graph_merges == 0

@@ -22,13 +22,16 @@ from threading import RLock
 import time
 
 from dimos_lcm.vision_msgs import BoundingBox3D, ObjectHypothesis, ObjectHypothesisWithPose
+import numpy as np
 from reactivex.disposable import Disposable
+from scipy.spatial.transform import Rotation
 
 from dimos.agents.annotation import skill
 from dimos.core.core import rpc
 from dimos.core.module import Module, ModuleConfig
 from dimos.core.stream import In, Out
 from dimos.msgs.geometry_msgs.Pose import Pose
+from dimos.msgs.geometry_msgs.PoseArray import PoseArray
 from dimos.msgs.geometry_msgs.Quaternion import Quaternion
 from dimos.msgs.geometry_msgs.Vector3 import Vector3
 from dimos.msgs.std_msgs.Header import Header
@@ -60,6 +63,7 @@ class SemanticObjectMap(Module):
     config: SemanticObjectMapConfig
 
     detections_3d: In[Detection3DArray]
+    pgo_keyframes: In[PoseArray]
     semantic_map: Out[Detection3DArray]
 
     def __init__(self, **kwargs: object) -> None:
@@ -74,18 +78,25 @@ class SemanticObjectMap(Module):
         self._matched_observations = 0
         self._new_tracks = 0
         self._association_ms: list[float] = []
+        self._keyframe_poses: tuple[tuple[float, ...], ...] = ()
 
     @rpc
     def start(self) -> None:
         super().start()
         self.register_disposable(Disposable(self.detections_3d.subscribe(self._on_detections)))
+        self.register_disposable(Disposable(self.pgo_keyframes.subscribe(self._on_keyframes)))
 
     def _on_detections(self, message: Detection3DArray) -> None:
         started_at = time.perf_counter()
+        with self._lock:
+            keyframe_poses = self._keyframe_poses
         observations = [
             observation
             for detection in message.detections[: message.detections_length]
-            if (observation := self._to_observation(detection, message.ts)) is not None
+            if (
+                observation := self._to_observation(detection, message.ts, keyframe_poses)
+            )
+            is not None
         ]
         with self._lock:
             self._frames_3d += 1
@@ -101,6 +112,26 @@ class SemanticObjectMap(Module):
             self._association_ms.append((time.perf_counter() - started_at) * 1000.0)
             mapped = self._tracker.confirmed(self.config.min_observations)
         self.semantic_map.publish(self._to_message(mapped, message.ts, message.frame_id))
+
+    def _on_keyframes(self, message: PoseArray) -> None:
+        poses = tuple(
+            (
+                float(pose.x),
+                float(pose.y),
+                float(pose.z),
+                float(pose.orientation.x),
+                float(pose.orientation.y),
+                float(pose.orientation.z),
+                float(pose.orientation.w),
+            )
+            for pose in message.poses
+        )
+        with self._lock:
+            self._keyframe_poses = poses
+            self._tracker.apply_keyframe_poses(poses)
+            mapped = self._tracker.confirmed(self.config.min_observations)
+        if mapped:
+            self.semantic_map.publish(self._to_message(mapped, message.ts, message.frame_id))
 
     @skill
     def where_is_object(self, name: str) -> str:
@@ -172,6 +203,9 @@ class SemanticObjectMap(Module):
             "dormant_objects": sum(obj.state.value == "dormant" for obj in all_objects),
             "moved_objects": sum(obj.state.value == "moved" for obj in all_objects),
             "move_events": sum(obj.move_count for obj in all_objects),
+            "graph_corrections": self._tracker.graph_corrections,
+            "graph_merges": self._tracker.graph_merges,
+            "max_graph_correction_m": self._tracker.max_graph_correction_m,
         }
 
     @rpc
@@ -198,7 +232,11 @@ class SemanticObjectMap(Module):
         )
 
     @staticmethod
-    def _to_observation(detection: Detection3D, fallback_ts: float) -> ObjectObservation | None:
+    def _to_observation(
+        detection: Detection3D,
+        fallback_ts: float,
+        keyframe_poses: tuple[tuple[float, ...], ...] = (),
+    ) -> ObjectObservation | None:
         if detection.results_length <= 0:
             return None
         best = max(
@@ -210,13 +248,28 @@ class SemanticObjectMap(Module):
             return None
         center = detection.bbox.center.position
         size = detection.bbox.size
+        position = (float(center.x), float(center.y), float(center.z))
+        anchor_keyframe = len(keyframe_poses) - 1 if keyframe_poses else None
+        anchor_position = None
+        if anchor_keyframe is not None:
+            pose = keyframe_poses[anchor_keyframe]
+            anchor_position_array = Rotation.from_quat(pose[3:7]).inv().apply(
+                np.asarray(position) - np.asarray(pose[:3])
+            )
+            anchor_position = (
+                float(anchor_position_array[0]),
+                float(anchor_position_array[1]),
+                float(anchor_position_array[2]),
+            )
         return ObjectObservation(
             label=label,
-            position=(float(center.x), float(center.y), float(center.z)),
+            position=position,
             size=(float(size.x), float(size.y), float(size.z)),
             confidence=float(best.hypothesis.score),
             timestamp=to_timestamp(detection.header.stamp) or fallback_ts,
             source_track_id=str(detection.id),
+            anchor_keyframe=anchor_keyframe,
+            anchor_position=anchor_position,
         )
 
     @staticmethod

@@ -198,3 +198,29 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
   overstating what this unannotated, static replay proves. Full semantic loop closure requires
   keyframe-anchored observations and propagation of pose-graph corrections; long-term moved-object
   re-identification requires detector descriptors or crops at the observation boundary.
+
+## E07 — keyframe-anchored semantic correction
+
+- Commit: this semantic-loop-correction commit (resolve with `git log --oneline`)
+- Date: 2026-10-30
+- Dataset/hardware/detector/lifter/association: same final stack as E06
+- Method: retain each 3D observation in the latest PGO keyframe's local coordinates; on every
+  optimized keyframe update, reproject all historical samples, recompute object centroids and
+  variance, and republish the semantic map. Merge only same-label tracks that become spatially
+  close and whose observed lifetimes do not overlap.
+- Command: `dimos --replay --replay-db data/go2_short.db --viewer none run
+  unitree-go2-semantic-map-temporal`
+- Replay event: 66 pose-graph updates and two geometric loop closures; maximum semantic centroid
+  correction was 0.110 m. No pair met the conservative post-correction merge rule.
+- Perception metrics: 855 input frames at 14.30 source FPS; 570 detector calls at 6.67 Hz; 423
+  2D detections; inference 18.32 ms mean / 23.94 ms p95; 337 detections entered fusion and 233
+  survived (69.14%); fusion 7.82 ms mean / 27.21 ms p95
+- Map metrics: 51 candidates, 34 confirmed, 216 confirmed observations, 78.11% association rate,
+  0.140 m mean centroid standard deviation; nearby same-label pairs were 2/3/10 at
+  0.5/0.75/1.0 m; association latency was 0.48 ms mean / 0.40 ms p95
+- Lifecycle result: 0 moved objects and 0 move events after disabling source-ID-only relocation.
+  Two preceding E07 trials produced one false move each even with three- and five-observation
+  confirmation, showing that stable upstream IDs are not sufficient evidence for relocation.
+- Conclusion: semantic landmarks now follow the existing DimOS pose graph through loop closure
+  instead of remaining frozen in stale world coordinates. This is correction propagation rather
+  than a joint object/pose factor graph; the latter would require adding semantic factors to PGO.

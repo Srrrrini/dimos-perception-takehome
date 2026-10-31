@@ -74,11 +74,13 @@ objects need evidence beyond a single tracker-ID jump before their persistent id
 The `unitree-go2-semantic-map-temporal` blueprint combines YOLO11 segmentation, hybrid mask/box
 lifting, global one-to-one assignment, and explicit active/dormant/moved lifecycle. Static objects
 seen after a long gap retain their identity by class and world position. A moved object retains its
-identity only after three coherent same-source observations or an injected appearance-descriptor
-match; ambiguous revisits create a new object instead of silently corrupting the map.
+identity only after an injected appearance-descriptor match; ambiguous revisits create a new
+object instead of silently corrupting the map. Source-ID-only relocation is available as an
+opt-in backend policy, but is disabled because replay showed stable IDs can accompany bad 3D jumps.
 
-This is not yet full semantic loop closure. The Go2 pose graph corrects the geometric map, but
-semantic observations are stored directly in world coordinates. A complete backend should retain
-each observation in its keyframe coordinates and reproject or jointly optimize semantic landmarks
-after pose-graph updates. The temporal backend deliberately exposes descriptor-bearing
-observations so a ReID/shape encoder can be added without changing the map API.
+Semantic observations retain their keyframe-local coordinates and are reprojected whenever the Go2
+pose graph updates, including after loop closure. Tracks are merged after correction only when they
+share a label, become spatially close, and have non-overlapping lifetimes. This propagates PGO
+corrections into the semantic layer; it is not a joint object/pose factor graph like SlideSLAM.
+The temporal backend also exposes descriptor-bearing observations so a ReID/shape encoder can be
+added without changing the map API.

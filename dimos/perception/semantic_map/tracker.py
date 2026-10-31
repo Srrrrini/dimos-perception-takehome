@@ -21,6 +21,9 @@ from enum import Enum
 import math
 import uuid
 
+import numpy as np
+from scipy.spatial.transform import Rotation
+
 
 class TrackState(str, Enum):
     ACTIVE = "active"
@@ -39,6 +42,17 @@ class ObjectObservation:
     timestamp: float
     source_track_id: str = ""
     descriptor: tuple[float, ...] = ()
+    anchor_keyframe: int | None = None
+    anchor_position: tuple[float, float, float] | None = None
+
+
+@dataclass(frozen=True)
+class PositionSample:
+    """Position retained in both world and optional keyframe-local coordinates."""
+
+    world: tuple[float, float, float]
+    anchor_keyframe: int | None = None
+    anchor_position: tuple[float, float, float] | None = None
 
 
 @dataclass
@@ -59,6 +73,11 @@ class SemanticObject:
     state: TrackState = TrackState.ACTIVE
     move_count: int = 0
     descriptor: tuple[float, ...] = ()
+    position_samples: list[PositionSample] | None = None
+
+    def __post_init__(self) -> None:
+        if self.position_samples is None:
+            self.position_samples = [PositionSample(self.position)]
 
     def update(self, observation: ObjectObservation) -> None:
         """Fuse an observation with an incremental arithmetic mean."""
@@ -89,6 +108,8 @@ class SemanticObject:
         self.last_seen = max(self.last_seen, observation.timestamp)
         self.observation_count += 1
         self.position_sample_count = new_weight
+        assert self.position_samples is not None
+        self.position_samples.append(self._sample(observation))
         if self.state != TrackState.MOVED:
             self.state = TrackState.ACTIVE
         if observation.source_track_id:
@@ -105,6 +126,7 @@ class SemanticObject:
         self.observation_count += 1
         self.position_m2 = 0.0
         self.position_sample_count = 1
+        self.position_samples = [self._sample(observation)]
         self.state = TrackState.MOVED
         self.move_count += 1
         if observation.source_track_id:
@@ -119,6 +141,60 @@ class SemanticObject:
             return 0.0
         return math.sqrt(self.position_m2 / (self.position_sample_count - 1))
 
+    @staticmethod
+    def _sample(observation: ObjectObservation) -> PositionSample:
+        return PositionSample(
+            observation.position,
+            observation.anchor_keyframe,
+            observation.anchor_position,
+        )
+
+    def reproject(self, keyframe_poses: tuple[tuple[float, ...], ...]) -> float:
+        """Recompute the centroid after pose-graph keyframes move; return centroid shift."""
+        assert self.position_samples is not None
+        corrected: list[PositionSample] = []
+        for sample in self.position_samples:
+            if (
+                sample.anchor_keyframe is None
+                or sample.anchor_position is None
+                or sample.anchor_keyframe >= len(keyframe_poses)
+            ):
+                corrected.append(sample)
+                continue
+            pose = keyframe_poses[sample.anchor_keyframe]
+            rotation = Rotation.from_quat(pose[3:7])
+            world = rotation.apply(sample.anchor_position) + np.asarray(pose[:3])
+            corrected.append(
+                PositionSample(
+                    (float(world[0]), float(world[1]), float(world[2])),
+                    sample.anchor_keyframe,
+                    sample.anchor_position,
+                )
+            )
+        old_position = self.position
+        self.position_samples = corrected
+        self._recompute_position_statistics()
+        return math.dist(old_position, self.position)
+
+    def absorb(self, other: SemanticObject) -> None:
+        """Merge a non-overlapping duplicate track after graph correction."""
+        assert self.position_samples is not None and other.position_samples is not None
+        self.position_samples.extend(other.position_samples)
+        self.observation_count += other.observation_count
+        self.first_seen = min(self.first_seen, other.first_seen)
+        self.last_seen = max(self.last_seen, other.last_seen)
+        self.confidence = max(self.confidence, other.confidence)
+        self.move_count += other.move_count
+        self._recompute_position_statistics()
+
+    def _recompute_position_statistics(self) -> None:
+        assert self.position_samples
+        positions = np.asarray([sample.world for sample in self.position_samples], dtype=np.float64)
+        mean = positions.mean(axis=0)
+        self.position = (float(mean[0]), float(mean[1]), float(mean[2]))
+        self.position_sample_count = len(positions)
+        self.position_m2 = float(np.square(positions - mean).sum())
+
 
 class SemanticMapTracker:
     """Associate same-label observations by stable world position."""
@@ -128,6 +204,9 @@ class SemanticMapTracker:
             raise ValueError("association_distance_m must be positive")
         self.association_distance_m = association_distance_m
         self._objects: dict[str, SemanticObject] = {}
+        self.graph_corrections = 0
+        self.graph_merges = 0
+        self.max_graph_correction_m = 0.0
 
     @property
     def objects(self) -> tuple[SemanticObject, ...]:
@@ -158,9 +237,35 @@ class SemanticMapTracker:
             last_seen=observation.timestamp,
             source_track_id=observation.source_track_id,
             descriptor=observation.descriptor,
+            position_samples=[SemanticObject._sample(observation)],
         )
         self._objects[obj.object_id] = obj
         return obj
+
+    def apply_keyframe_poses(self, poses: tuple[tuple[float, ...], ...]) -> None:
+        """Reproject anchored samples and merge only temporally disjoint duplicates."""
+        if not poses:
+            return
+        shifts = [obj.reproject(poses) for obj in self._objects.values()]
+        if shifts:
+            self.graph_corrections += 1
+            self.max_graph_correction_m = max(self.max_graph_correction_m, max(shifts))
+        objects = list(self._objects.values())
+        for index, left in enumerate(objects):
+            if left.object_id not in self._objects:
+                continue
+            for right in objects[index + 1 :]:
+                if right.object_id not in self._objects:
+                    continue
+                disjoint = left.last_seen < right.first_seen or right.last_seen < left.first_seen
+                if (
+                    disjoint
+                    and left.label.casefold() == right.label.casefold()
+                    and math.dist(left.position, right.position) <= self.association_distance_m
+                ):
+                    left.absorb(right)
+                    del self._objects[right.object_id]
+                    self.graph_merges += 1
 
     def confirmed(self, min_observations: int) -> list[SemanticObject]:
         """Return stable objects in deterministic insertion order."""
@@ -259,7 +364,8 @@ class TemporalSemanticMapTracker(GlobalAssignmentSemanticMapTracker):
         reidentification_distance_m: float = 5.0,
         descriptor_similarity: float = 0.85,
         source_track_reid_max_age_s: float = 2.0,
-        move_confirmation_observations: int = 3,
+        move_confirmation_observations: int = 5,
+        allow_source_track_relocation: bool = False,
     ) -> None:
         super().__init__(association_distance_m)
         if dormant_after_s <= 0:
@@ -277,6 +383,7 @@ class TemporalSemanticMapTracker(GlobalAssignmentSemanticMapTracker):
         if move_confirmation_observations <= 1:
             raise ValueError("move_confirmation_observations must exceed one")
         self.move_confirmation_observations = move_confirmation_observations
+        self.allow_source_track_relocation = allow_source_track_relocation
         self._pending_moves: dict[str, tuple[tuple[float, float, float], int, float]] = {}
 
     def update(self, observations: list[ObjectObservation]) -> list[SemanticObject]:
@@ -303,7 +410,8 @@ class TemporalSemanticMapTracker(GlobalAssignmentSemanticMapTracker):
         )
         descriptor_match = self._descriptor_similarity(observation.descriptor, obj.descriptor)
         if observation.label.casefold() == obj.label.casefold() and (
-            same_source_identity or descriptor_match >= self.descriptor_similarity
+            (self.allow_source_track_relocation and same_source_identity)
+            or descriptor_match >= self.descriptor_similarity
         ):
             distance = math.dist(obj.position, observation.position)
             if distance <= self.reidentification_distance_m:
