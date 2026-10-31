@@ -23,6 +23,7 @@ from dimos.perception.detection.lifter import (
     HybridMaskBoxLifter,
     ProjectedPointCloudLifter,
 )
+from dimos.perception.detection.module2D import Detection2DModule
 from dimos.perception.detection.module3D import Detection3DModule
 from dimos.perception.detection.type.detection2d.imageDetections2D import ImageDetections2D
 from dimos.perception.detection.type.detection2d.seg import Detection2DSeg
@@ -99,3 +100,41 @@ def test_hybrid_lifter_recovers_sparse_mask_with_box() -> None:
     assert result.detections == [fallback]
     assert not hasattr(project.call_args.args[0], "mask")
     assert lifter.get_metrics()["fallback_recovered"] == 1
+
+
+def test_detector_exception_is_isolated_to_one_frame() -> None:
+    image = MagicMock()
+    image.ts = 1.0
+    module = Detection3DModule(
+        camera_info=GO2Connection.camera_info_static,
+        detector=MagicMock,
+    )
+
+    with patch.object(Detection2DModule, "process_image_frame", side_effect=RuntimeError("bad")):
+        result = module.process_image_frame(image)
+
+    assert len(result) == 0
+    assert module.get_perception_metrics()["inference_failures"] == 1
+    module._close_module()
+
+
+def test_lifter_exception_is_isolated_to_one_frame() -> None:
+    image = MagicMock()
+    image.ts = 1.0
+    detections = ImageDetections2D(image=image, detections=[])
+    cloud = MagicMock(spec=PointCloud2)
+    cloud.ts = 1.0
+    transform = MagicMock(spec=Transform)
+    lifter = MagicMock(spec=Detection3DLifter)
+    lifter.lift.side_effect = RuntimeError("bad cloud")
+    module = Detection3DModule(
+        camera_info=GO2Connection.camera_info_static,
+        detector=MagicMock,
+        lifter=lambda: lifter,
+    )
+
+    result = module.process_frame(detections, cloud, transform)
+
+    assert len(result) == 0
+    assert module.get_perception_metrics()["fusion_failures"] == 1
+    module._close_module()

@@ -24,7 +24,7 @@ from dimos.msgs.std_msgs.Header import Header
 from dimos.msgs.vision_msgs.Detection3D import Detection3D
 from dimos.msgs.vision_msgs.Detection3DArray import Detection3DArray
 from dimos.perception.semantic_map.module import SemanticObjectMap
-from dimos.perception.semantic_map.tracker import SemanticMapTracker
+from dimos.perception.semantic_map.tracker import SemanticMapTracker, TemporalSemanticMapTracker
 
 
 def detection(label: str, x: float, timestamp: float) -> Detection3D:
@@ -105,4 +105,54 @@ def test_module_accepts_injected_map_backend() -> None:
     assert module._tracker is backend
     assert module.get_metrics()["backend"] == "SemanticMapTracker"
 
+    module.stop()
+
+
+def test_pending_move_is_not_counted_as_an_accepted_fusion() -> None:
+    module = SemanticObjectMap(
+        min_observations=1,
+        association_distance_m=0.5,
+        backend=lambda distance: TemporalSemanticMapTracker(
+            association_distance_m=distance,
+            allow_source_track_relocation=True,
+        ),
+    )
+    module.semantic_map = MagicMock()
+    first = detection("chair", 1.0, 1.0)
+    first.id = "persistent"
+    proposal = detection("chair", 3.0, 2.0)
+    proposal.id = "persistent"
+
+    module._on_detections(frame(first, timestamp=1.0))
+    module._on_detections(frame(proposal, timestamp=2.0))
+
+    metrics = module.get_metrics()
+    assert metrics["accepted_fusions"] == 0
+    assert metrics["unfused_observations"] == 1
+    assert metrics["association_rate"] == 0.0
+    module.stop()
+
+
+def test_invalid_frame_and_nonfinite_detection_are_rejected() -> None:
+    module = SemanticObjectMap(min_observations=1)
+    module.semantic_map = MagicMock()
+    wrong_frame = frame(detection("chair", 1.0, 1.0), timestamp=1.0)
+    wrong_frame.header.frame_id = "camera"
+    invalid = detection("chair", float("nan"), 2.0)
+
+    module._on_detections(wrong_frame)
+    module._on_detections(frame(invalid, timestamp=2.0))
+
+    metrics = module.get_metrics()
+    assert metrics["rejected_frames"] == 1
+    assert metrics["invalid_observations"] == 1
+    assert metrics["candidate_objects"] == 0
+    module.stop()
+
+
+def test_pose_graph_correction_is_disabled_by_default() -> None:
+    module = SemanticObjectMap(min_observations=1)
+
+    assert module.get_metrics()["pose_graph_correction_enabled"] is False
+    assert module.get_metrics()["graph_corrections"] == 0
     module.stop()

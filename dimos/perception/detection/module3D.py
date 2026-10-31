@@ -92,6 +92,9 @@ class Detection3DModule(Detection2DModule):
         self._fusion_ms: list[float] = []
         self._descriptor_count = 0
         self._descriptor_ms: list[float] = []
+        self._inference_failures = 0
+        self._fusion_failures = 0
+        self._descriptor_failures = 0
 
     def _observe_input(self, image: Image) -> None:
         timestamp = float(image.ts)
@@ -104,7 +107,14 @@ class Detection3DModule(Detection2DModule):
     def process_image_frame(self, image: Image) -> ImageDetections2D:
         """Run the configured detector and record its effective replay cost."""
         started_at = time.perf_counter()
-        detections = super().process_image_frame(image)
+        try:
+            detections = super().process_image_frame(image)
+        except Exception:
+            logger.exception("Detector failed for one frame", timestamp=float(image.ts))
+            with self._metrics_lock:
+                self._inference_failures += 1
+                self._inference_ms.append((time.perf_counter() - started_at) * 1000.0)
+            return ImageDetections2D(image, [])
         elapsed_ms = (time.perf_counter() - started_at) * 1000.0
         with self._metrics_lock:
             self._inference_calls += 1
@@ -127,7 +137,19 @@ class Detection3DModule(Detection2DModule):
                 self._fusion_ms.append((time.perf_counter() - started_at) * 1000.0)
             return ImageDetections3DPC(detections.image, [])
 
-        result = self.lifter.lift(detections, pointcloud, self.config.camera_info, transform)
+        try:
+            result = self.lifter.lift(detections, pointcloud, self.config.camera_info, transform)
+        except Exception:
+            logger.exception(
+                "Camera-LiDAR lifting failed for one frame",
+                timestamp=float(detections.image.ts),
+            )
+            with self._metrics_lock:
+                self._fusion_calls += 1
+                self._fusion_failures += 1
+                self._fusion_detections_2d += len(detections)
+                self._fusion_ms.append((time.perf_counter() - started_at) * 1000.0)
+            return ImageDetections3DPC(detections.image, [])
         sources = {
             (detection.track_id, detection.class_id, detection.bbox): detection
             for detection in detections
@@ -137,7 +159,20 @@ class Detection3DModule(Detection2DModule):
             sources.get((detection.track_id, detection.class_id, detection.bbox), detection)
             for detection in result
         ]
-        descriptors = self.appearance_descriptor.describe_many(descriptor_sources)
+        try:
+            descriptors = self.appearance_descriptor.describe_many(descriptor_sources)
+            if len(descriptors) != len(result):
+                raise ValueError(
+                    f"descriptor count {len(descriptors)} != detection count {len(result)}"
+                )
+        except Exception:
+            logger.exception(
+                "Appearance descriptor failed for one frame",
+                timestamp=float(detections.image.ts),
+            )
+            with self._metrics_lock:
+                self._descriptor_failures += 1
+            descriptors = [() for _ in result]
         descriptor_ms = (time.perf_counter() - descriptor_started_at) * 1000.0
         for detection, descriptor in zip(result, descriptors, strict=True):
             detection.appearance_descriptor = descriptor
@@ -184,10 +219,12 @@ class Detection3DModule(Detection2DModule):
                 "sensor_span_s": sensor_span_s,
                 "source_fps": self._input_frames / sensor_span_s if sensor_span_s > 0 else 0.0,
                 "inference_calls": self._inference_calls,
+                "inference_failures": self._inference_failures,
                 "effective_inference_hz": self._inference_calls / elapsed_s,
                 "detections_2d": self._detections_2d,
                 "inference_ms": self._distribution(self._inference_ms),
                 "fusion_calls": self._fusion_calls,
+                "fusion_failures": self._fusion_failures,
                 "fusion_detections_2d": self._fusion_detections_2d,
                 "fusion_detections_3d": self._fusion_detections_3d,
                 "fusion_survival_ratio": (
@@ -202,6 +239,7 @@ class Detection3DModule(Detection2DModule):
                 "lifter_metrics": self.lifter.get_metrics(),
                 "appearance_descriptor": type(self.appearance_descriptor).__name__,
                 "descriptor_count": self._descriptor_count,
+                "descriptor_failures": self._descriptor_failures,
                 "descriptor_ms": self._distribution(self._descriptor_ms),
             }
 
@@ -295,7 +333,18 @@ class Detection3DModule(Detection2DModule):
 
         def detection2d_to_3d(args):  # type: ignore[no-untyped-def]
             detections, pc = args
-            transform = self.tfbuffer.get("camera_optical", pc.frame_id, detections.image.ts, 5.0)
+            try:
+                transform = self.tfbuffer.get(
+                    "camera_optical", pc.frame_id, detections.image.ts, 5.0
+                )
+            except Exception:
+                logger.exception(
+                    "Transform lookup failed for one frame",
+                    timestamp=float(detections.image.ts),
+                )
+                with self._metrics_lock:
+                    self._fusion_failures += 1
+                transform = None
             return self.process_frame(detections, pc, transform)
 
         self.detection_stream_3d = align_timestamped(  # type: ignore[type-var]

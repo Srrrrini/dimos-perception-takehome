@@ -56,6 +56,9 @@ class SemanticObjectMapConfig(ModuleConfig):
     association_distance_m: float = 0.75
     min_observations: int = 2
     backend: Callable[[float], SemanticMapBackend] = SemanticMapTracker
+    expected_frame_id: str = "world"
+    max_timestamp_lateness_s: float = 0.25
+    enable_experimental_pose_graph_correction: bool = False
 
 
 class SemanticObjectMap(Module):
@@ -71,15 +74,23 @@ class SemanticObjectMap(Module):
         super().__init__(**kwargs)
         if self.config.min_observations <= 0:
             raise ValueError("min_observations must be positive")
+        if not self.config.expected_frame_id:
+            raise ValueError("expected_frame_id must not be empty")
+        if self.config.max_timestamp_lateness_s < 0:
+            raise ValueError("max_timestamp_lateness_s must be non-negative")
         self._tracker = self.config.backend(self.config.association_distance_m)
         self._lock = RLock()
         self._metrics_started_at = time.perf_counter()
         self._frames_3d = 0
         self._observations_in = 0
         self._matched_observations = 0
+        self._unfused_observations = 0
         self._new_tracks = 0
+        self._invalid_observations = 0
+        self._rejected_frames = 0
         self._association_ms: list[float] = []
         self._keyframe_poses: tuple[tuple[float, ...], ...] = ()
+        self._latest_detection_ts = -math.inf
 
     @rpc
     def start(self) -> None:
@@ -89,32 +100,69 @@ class SemanticObjectMap(Module):
 
     def _on_detections(self, message: Detection3DArray) -> None:
         started_at = time.perf_counter()
+        message_ts = float(message.ts)
         with self._lock:
-            keyframe_poses = self._keyframe_poses
-        observations = [
-            observation
-            for detection in message.detections[: message.detections_length]
-            if (
-                observation := self._to_observation(detection, message.ts, keyframe_poses)
+            invalid_frame = (
+                message.frame_id != self.config.expected_frame_id
+                or not math.isfinite(message_ts)
+                or message_ts
+                < self._latest_detection_ts - self.config.max_timestamp_lateness_s
             )
-            is not None
-        ]
+            if invalid_frame:
+                self._rejected_frames += 1
+            else:
+                self._latest_detection_ts = max(self._latest_detection_ts, message_ts)
+        if invalid_frame:
+            logger.warning(
+                "Rejected semantic-map frame",
+                frame_id=message.frame_id,
+                timestamp=message_ts,
+            )
+            return
+        with self._lock:
+            keyframe_poses = (
+                self._keyframe_poses
+                if self.config.enable_experimental_pose_graph_correction
+                else ()
+            )
+        observations = []
+        invalid = 0
+        for detection in message.detections[: message.detections_length]:
+            observation = self._to_observation(
+                detection,
+                message.ts,
+                keyframe_poses,
+                expected_frame_id=self.config.expected_frame_id,
+            )
+            if observation is None:
+                invalid += 1
+            else:
+                observations.append(observation)
         with self._lock:
             self._frames_3d += 1
             self._observations_in += len(observations)
+            self._invalid_observations += invalid
         if not observations:
             return
         with self._lock:
             objects_before = len(self._tracker.objects)
+            samples_before = sum(obj.observation_count for obj in self._tracker.objects)
             self._tracker.update(observations)
             created = len(self._tracker.objects) - objects_before
+            samples_after = sum(obj.observation_count for obj in self._tracker.objects)
+            accepted_fusions = max(0, samples_after - samples_before - created)
             self._new_tracks += created
-            self._matched_observations += len(observations) - created
+            self._matched_observations += accepted_fusions
+            self._unfused_observations += max(
+                0, len(observations) - created - accepted_fusions
+            )
             self._association_ms.append((time.perf_counter() - started_at) * 1000.0)
             mapped = self._tracker.confirmed(self.config.min_observations)
         self.semantic_map.publish(self._to_message(mapped, message.ts, message.frame_id))
 
     def _on_keyframes(self, message: PoseArray) -> None:
+        if not self.config.enable_experimental_pose_graph_correction:
+            return
         poses = tuple(
             (
                 float(pose.x),
@@ -127,6 +175,15 @@ class SemanticObjectMap(Module):
             )
             for pose in message.poses
         )
+        if message.frame_id != self.config.expected_frame_id or not all(
+            all(math.isfinite(value) for value in pose)
+            and math.isclose(sum(value * value for value in pose[3:7]), 1.0, abs_tol=1e-3)
+            for pose in poses
+        ):
+            with self._lock:
+                self._rejected_frames += 1
+            logger.warning("Rejected invalid pose-graph update", frame_id=message.frame_id)
+            return
         with self._lock:
             self._keyframe_poses = poses
             self._tracker.apply_keyframe_poses(poses)
@@ -173,6 +230,9 @@ class SemanticObjectMap(Module):
             observations_in = self._observations_in
             matched_observations = self._matched_observations
             new_tracks = self._new_tracks
+            unfused_observations = self._unfused_observations
+            invalid_observations = self._invalid_observations
+            rejected_frames = self._rejected_frames
             association_ms = list(self._association_ms)
         observations = sum(obj.observation_count for obj in confirmed)
         deviations = [obj.position_stddev_m for obj in confirmed]
@@ -184,6 +244,10 @@ class SemanticObjectMap(Module):
             "frames_3d": frames_3d,
             "observations_in": observations_in,
             "matched_observations": matched_observations,
+            "accepted_fusions": matched_observations,
+            "unfused_observations": unfused_observations,
+            "invalid_observations": invalid_observations,
+            "rejected_frames": rejected_frames,
             "new_tracks": new_tracks,
             "association_rate": matched_observations / observations_in if observations_in else 0.0,
             "new_track_rate": new_tracks / observations_in if observations_in else 0.0,
@@ -207,6 +271,9 @@ class SemanticObjectMap(Module):
             "graph_corrections": self._tracker.graph_corrections,
             "graph_merges": self._tracker.graph_merges,
             "max_graph_correction_m": self._tracker.max_graph_correction_m,
+            "pose_graph_correction_enabled": (
+                self.config.enable_experimental_pose_graph_correction
+            ),
         }
 
     @rpc
@@ -237,8 +304,9 @@ class SemanticObjectMap(Module):
         detection: Detection3D,
         fallback_ts: float,
         keyframe_poses: tuple[tuple[float, ...], ...] = (),
+        expected_frame_id: str = "world",
     ) -> ObjectObservation | None:
-        if detection.results_length <= 0:
+        if detection.results_length <= 0 or detection.header.frame_id != expected_frame_id:
             return None
         best = max(
             detection.results[: detection.results_length],
@@ -251,6 +319,15 @@ class SemanticObjectMap(Module):
         size = detection.bbox.size
         source_track_id, descriptor = decode_detection_id(str(detection.id))
         position = (float(center.x), float(center.y), float(center.z))
+        dimensions = (float(size.x), float(size.y), float(size.z))
+        confidence = float(best.hypothesis.score)
+        timestamp = to_timestamp(detection.header.stamp) or fallback_ts
+        if (
+            not all(math.isfinite(value) for value in (*position, *dimensions, confidence, timestamp))
+            or any(value <= 0.0 for value in dimensions)
+            or not 0.0 <= confidence <= 1.0
+        ):
+            return None
         anchor_keyframe = len(keyframe_poses) - 1 if keyframe_poses else None
         anchor_position = None
         if anchor_keyframe is not None:
@@ -266,9 +343,9 @@ class SemanticObjectMap(Module):
         return ObjectObservation(
             label=label,
             position=position,
-            size=(float(size.x), float(size.y), float(size.z)),
-            confidence=float(best.hypothesis.score),
-            timestamp=to_timestamp(detection.header.stamp) or fallback_ts,
+            size=dimensions,
+            confidence=confidence,
+            timestamp=timestamp,
             source_track_id=source_track_id,
             descriptor=descriptor,
             anchor_keyframe=anchor_keyframe,
