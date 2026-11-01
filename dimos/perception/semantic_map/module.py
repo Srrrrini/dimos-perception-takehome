@@ -33,6 +33,7 @@ from dimos.core.module import Module, ModuleConfig
 from dimos.core.stream import In, Out
 from dimos.msgs.geometry_msgs.Pose import Pose
 from dimos.msgs.geometry_msgs.PoseArray import PoseArray
+from dimos.msgs.geometry_msgs.PoseStamped import PoseStamped
 from dimos.msgs.geometry_msgs.Quaternion import Quaternion
 from dimos.msgs.geometry_msgs.Vector3 import Vector3
 from dimos.msgs.std_msgs.Header import Header
@@ -60,6 +61,7 @@ class SemanticObjectMapConfig(ModuleConfig):
     expected_frame_id: str = "world"
     max_timestamp_lateness_s: float = 0.25
     enable_experimental_pose_graph_correction: bool = False
+    navigation_standoff_m: float = 1.0
 
 
 class SemanticObjectMap(Module):
@@ -69,7 +71,9 @@ class SemanticObjectMap(Module):
 
     detections_3d: In[Detection3DArray]
     pgo_keyframes: In[PoseArray]
+    odom: In[PoseStamped]
     semantic_map: Out[Detection3DArray]
+    goal_request: Out[PoseStamped]
 
     def __init__(self, **kwargs: object) -> None:
         super().__init__(**kwargs)
@@ -79,6 +83,8 @@ class SemanticObjectMap(Module):
             raise ValueError("expected_frame_id must not be empty")
         if self.config.max_timestamp_lateness_s < 0:
             raise ValueError("max_timestamp_lateness_s must be non-negative")
+        if self.config.navigation_standoff_m <= 0:
+            raise ValueError("navigation_standoff_m must be positive")
         self._tracker = self.config.backend(self.config.association_distance_m)
         self._lock = RLock()
         self._metrics_started_at = time.perf_counter()
@@ -92,12 +98,22 @@ class SemanticObjectMap(Module):
         self._association_ms: list[float] = []
         self._keyframe_poses: tuple[tuple[float, ...], ...] = ()
         self._latest_detection_ts = -math.inf
+        self._latest_pose: PoseStamped | None = None
+        self._navigation_requests = 0
+        self._navigation_failures = 0
 
     @rpc
     def start(self) -> None:
         super().start()
         self.register_disposable(Disposable(self.detections_3d.subscribe(self._on_detections)))
         self.register_disposable(Disposable(self.pgo_keyframes.subscribe(self._on_keyframes)))
+        self.register_disposable(Disposable(self.odom.subscribe(self._on_odom)))
+
+    def _on_odom(self, pose: PoseStamped) -> None:
+        values = (*pose.position.to_tuple(), *pose.orientation.to_tuple(), float(pose.ts))
+        if pose.frame_id == self.config.expected_frame_id and all(map(math.isfinite, values)):
+            with self._lock:
+                self._latest_pose = pose
 
     def _on_detections(self, message: Detection3DArray) -> None:
         started_at = time.perf_counter()
@@ -213,6 +229,52 @@ class SemanticObjectMap(Module):
         ]
         return "\n".join(descriptions)
 
+    @skill
+    def navigate_to_object(self, name: str) -> str:
+        """Send the existing planner a standoff goal near the nearest matching object."""
+        with self._lock:
+            matches = self._tracker.find(name, self.config.min_observations)
+            pose = self._latest_pose
+            if not matches:
+                self._navigation_failures += 1
+                return f"No confirmed object matching '{name}' is in the semantic map."
+            if pose is None:
+                self._navigation_failures += 1
+                return "Cannot navigate without a valid world-frame robot pose."
+            target = min(
+                matches,
+                key=lambda obj: math.hypot(
+                    obj.position[0] - pose.position.x,
+                    obj.position[1] - pose.position.y,
+                ),
+            )
+            dx = target.position[0] - pose.position.x
+            dy = target.position[1] - pose.position.y
+            distance = math.hypot(dx, dy)
+            travel = max(0.0, distance - self.config.navigation_standoff_m)
+            scale = travel / distance if distance > 1e-6 else 0.0
+            goal_x = pose.position.x + dx * scale
+            goal_y = pose.position.y + dy * scale
+            yaw = math.atan2(dy, dx) if distance > 1e-6 else 0.0
+            goal = PoseStamped(
+                goal_x,
+                goal_y,
+                pose.position.z,
+                0.0,
+                0.0,
+                math.sin(yaw / 2.0),
+                math.cos(yaw / 2.0),
+                ts=time.time(),
+                frame_id=self.config.expected_frame_id,
+            )
+            self._navigation_requests += 1
+        self.goal_request.publish(goal)
+        return (
+            f"Navigation goal sent for {target.label} {target.object_id[:8]}: "
+            f"({goal_x:.2f}, {goal_y:.2f}) m, "
+            f"standoff={self.config.navigation_standoff_m:.2f} m."
+        )
+
     @rpc
     def get_semantic_map(self) -> Detection3DArray:
         """Return the current confirmed map for programmatic consumers."""
@@ -235,6 +297,8 @@ class SemanticObjectMap(Module):
             invalid_observations = self._invalid_observations
             rejected_frames = self._rejected_frames
             association_ms = list(self._association_ms)
+            navigation_requests = self._navigation_requests
+            navigation_failures = self._navigation_failures
         observations = sum(obj.observation_count for obj in confirmed)
         deviations = [obj.position_stddev_m for obj in confirmed]
         lifetimes = [obj.last_seen - obj.first_seen for obj in confirmed]
@@ -279,6 +343,8 @@ class SemanticObjectMap(Module):
             "pose_graph_correction_enabled": (
                 self.config.enable_experimental_pose_graph_correction
             ),
+            "navigation_requests": navigation_requests,
+            "navigation_failures": navigation_failures,
         }
 
     @rpc

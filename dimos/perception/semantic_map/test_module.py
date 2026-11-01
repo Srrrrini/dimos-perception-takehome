@@ -19,6 +19,7 @@ from dimos_lcm.vision_msgs import BoundingBox3D, ObjectHypothesis, ObjectHypothe
 import pytest
 
 from dimos.msgs.geometry_msgs.Pose import Pose
+from dimos.msgs.geometry_msgs.PoseStamped import PoseStamped
 from dimos.msgs.geometry_msgs.Vector3 import Vector3
 from dimos.msgs.std_msgs.Header import Header
 from dimos.msgs.vision_msgs.Detection3D import Detection3D
@@ -157,4 +158,39 @@ def test_pose_graph_correction_is_disabled_by_default() -> None:
 
     assert module.get_metrics()["pose_graph_correction_enabled"] is False
     assert module.get_metrics()["graph_corrections"] == 0
+    module.stop()
+
+
+def test_navigate_to_object_publishes_nearest_safe_standoff_goal() -> None:
+    module = SemanticObjectMap(min_observations=2, navigation_standoff_m=1.0)
+    module.semantic_map = MagicMock()
+    module.goal_request = MagicMock()
+    module._on_odom(PoseStamped(0.0, 2.0, 0.25, ts=2.0, frame_id="world"))
+    module._on_detections(frame(detection("chair", 3.0, 1.0), timestamp=1.0))
+    module._on_detections(frame(detection("chair", 3.2, 2.0), timestamp=2.0))
+
+    response = module.navigate_to_object("chair")
+
+    goal = module.goal_request.publish.call_args.args[0]
+    assert goal.frame_id == "world"
+    assert goal.position.x == pytest.approx(2.1)
+    assert goal.position.y == pytest.approx(2.0)
+    assert goal.position.z == pytest.approx(0.25)
+    assert goal.orientation.w == pytest.approx(1.0)
+    assert "Navigation goal sent" in response
+    assert module.get_metrics()["navigation_requests"] == 1
+    module.stop()
+
+
+def test_navigate_to_object_requires_world_pose() -> None:
+    module = SemanticObjectMap(min_observations=1)
+    module.semantic_map = MagicMock()
+    module.goal_request = MagicMock()
+    module._on_detections(frame(detection("chair", 3.0, 1.0), timestamp=1.0))
+
+    response = module.navigate_to_object("chair")
+
+    assert "without a valid world-frame robot pose" in response
+    module.goal_request.publish.assert_not_called()
+    assert module.get_metrics()["navigation_failures"] == 1
     module.stop()
