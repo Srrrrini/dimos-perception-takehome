@@ -440,3 +440,24 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
   `recordings/20261101-125124-ea4c-unitree-go2-semantic-map-temporal/rerun.rrd`, SHA-256
   `8e70e16ac003a0dbbab34154c204e7002e061505fd90524d8ef966751d5a7e9f`; 112 MiB and verified.
 - Verification: 48 focused tests passed. Ruff and production-source mypy checks passed.
+
+## E18 — fair four-detector GPU speed comparison
+
+- Date: 2026-11-01
+- Method: four fresh processes, identical E12 database hash and 13 frame IDs, CUDA, stateless
+  prediction for every detector. This corrects the earlier comparison in which YOLO11 used its
+  stateful tracking path while YOLO-E used stateless prediction.
+- Host: NVIDIA GeForce RTX 5070 Ti Laptop GPU, 12,227 MiB, driver 580.178.04; PyTorch 2.7.1+cu128;
+  Ultralytics 8.4.14.
+- YOLO11n-seg: 7 detections / 5 labels; 717.04 ms cached cold start; 7.41 ms warm mean,
+  7.00 ms median, 10.06 ms p95; 134.96 Hz.
+- YOLO-E-11s-seg-pf: 10 detections / 9 labels; 1,200.02 ms cached cold start; 28.39 ms warm mean,
+  30.21 ms median, 36.41 ms p95; 35.23 Hz.
+- Grounding DINO Tiny: 118 detections / 13 labels; 4,209.38 ms cached cold start; 748.44 ms warm
+  mean, 750.28 ms median, 782.85 ms p95; 1.34 Hz.
+- Grounding DINO Tiny + SAM 2.1 Tiny: the same 118 DINO detections refined into masks; 6,257.01 ms
+  cached cold start; 976.06 ms warm mean, 975.94 ms median, 1,082.43 ms p95; 1.02 Hz. The initial
+  uncached run additionally spent about 24 seconds downloading the 74.5 MiB SAM weight.
+- Interpretation: YOLO11 is the fastest fixed-vocabulary baseline. YOLO-E is 3.83x slower than
+  YOLO11 but remains comfortably online and broadens labels. DINO is 100.99x slower than YOLO11;
+  adding SAM costs another 30.4% over DINO. Detection totals measure output volume, not accuracy.

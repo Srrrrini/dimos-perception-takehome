@@ -74,6 +74,17 @@ class Yolo2DDetector(Detector):
 
         return ImageDetections2D.from_ultralytics_result(image, results)
 
+    def predict_image(self, image: Image) -> ImageDetections2D:
+        """Run stateless inference for reproducible detector comparisons."""
+        results = self.model.predict(
+            source=image.to_opencv(),
+            device=self.device,
+            conf=self.conf,
+            iou=self.iou,
+            verbose=False,
+        )
+        return ImageDetections2D.from_ultralytics_result(image, results)
+
     def stop(self) -> None:
         """
         Clean up resources used by the detector, including tracker threads.

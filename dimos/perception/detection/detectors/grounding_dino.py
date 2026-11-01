@@ -169,10 +169,11 @@ class GroundingDino2DDetector(Detector):
         self,
         queries: tuple[str, ...] = DEFAULT_QUERIES,
         threshold: float = 0.25,
+        device: str | None = None,
     ) -> None:
         self.queries = queries
         self.threshold = threshold
-        self.model = GroundingDinoDetector()
+        self.model = GroundingDinoDetector(**({"device": device} if device else {}))
 
     def process_image(self, image: Image) -> ImageDetections2D:
         return self.predict_image(image)
@@ -194,7 +195,7 @@ class GroundingDinoSam2DDetector(GroundingDino2DDetector):
         sam_model: str = "sam2.1_t.pt",
         device: str | None = None,
     ) -> None:
-        super().__init__(queries=queries, threshold=threshold)
+        super().__init__(queries=queries, threshold=threshold, device=device)
         self.sam_model = sam_model
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
 

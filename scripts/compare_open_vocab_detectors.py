@@ -24,6 +24,7 @@ MODEL_NAMES = {
     "coco-yolo": "yolo11n-seg.pt",
     "yoloe": "yoloe-11s-seg-pf.pt",
     "grounding-dino": "IDEA-Research/grounding-dino-tiny",
+    "grounding-dino-sam": "IDEA-Research/grounding-dino-tiny + sam2.1_t.pt",
 }
 
 
@@ -35,27 +36,35 @@ def detector_predictor(name: str, device: str | None) -> Predictor:
     if name == "coco-yolo":
         from dimos.perception.detection.detectors.yolo import Yolo11Seg2DDetector
 
-        return Yolo11Seg2DDetector(device=device).process_image
+        return Yolo11Seg2DDetector(device=device).predict_image
     if name == "yoloe":
         from dimos.perception.detection.detectors.yoloe import Yoloe2DDetector
 
         return Yoloe2DDetector(device=device).predict_image
 
-    from dimos.perception.detection.detectors.grounding_dino import GroundingDino2DDetector
+    from dimos.perception.detection.detectors.grounding_dino import (
+        GroundingDino2DDetector,
+        GroundingDinoSam2DDetector,
+    )
 
-    return GroundingDino2DDetector().predict_image
+    detector = (
+        GroundingDinoSam2DDetector(device=device)
+        if name == "grounding-dino-sam"
+        else GroundingDino2DDetector(device=device)
+    )
+    return detector.predict_image
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--detector", choices=("coco-yolo", "yoloe", "grounding-dino"), required=True
+        "--detector",
+        choices=("coco-yolo", "yoloe", "grounding-dino", "grounding-dino-sam"),
+        required=True,
     )
     parser.add_argument("--database", type=Path, default=Path("data/go2_short.db"))
     parser.add_argument("--device", choices=("cpu", "cuda"), default=None)
     args = parser.parse_args()
-    if args.detector == "grounding-dino" and args.device is not None:
-        parser.error("--device is not yet configurable for grounding-dino")
     predict = detector_predictor(args.detector, args.device)
     counts: Counter[str] = Counter()
     latencies_ms: list[float] = []
