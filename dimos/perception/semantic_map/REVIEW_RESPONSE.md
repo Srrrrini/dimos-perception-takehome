@@ -74,3 +74,14 @@ schema: it adds about 1.4 KiB for a 512-D vector and makes IDs opaque. Plain ext
 decode unchanged and the appearance stage is injectable/no-op. Production follow-up should add a
 versioned semantic-observation message or a parallel descriptor topic keyed by a compact detection
 ID; changing DimOS's public message schema is intentionally outside this take-home.
+
+### Follow-up review
+
+The PR description incorrectly mixed E08 descriptor/latency values with the corrected E10
+association result. It now reports E10 consistently: 224 descriptors, 80.80% strict fusion,
+0.62/0.77 ms mean/p95 association latency, and 4.16/8.23 ms mean/p95 descriptor latency.
+
+Detection-test collection also imported the Go2 connection—and therefore Unitree audio—at module
+load time. The connection import is now lazy inside only the data-backed fixtures that require it;
+the focused lifter tests use a `CameraInfo` test double. The 29-test focused suite therefore
+collects and passes without PortAudio installed.

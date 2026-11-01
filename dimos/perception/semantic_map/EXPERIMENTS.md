@@ -313,3 +313,15 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
 - Temporal result: 0 reported move events on a recording believed to be static
 - Geometry result: pose-graph correction disabled, 0 semantic graph corrections; the mapper
   independently reported two geometric loop closures
+
+## E11 — follow-up review consistency and test isolation
+
+- Date: 2026-10-31
+- Documentation correction: `PR_DESCRIPTION.md` now uses only E10 values—224 descriptors, 80.80%
+  strict accepted fusion, 0.62/0.77 ms association mean/p95, and 4.16/8.23 ms descriptor mean/p95
+- Test isolation: moved the Unitree connection import out of detection `conftest.py` collection and
+  replaced the focused lifter tests' Go2 connection dependency with a `CameraInfo` test double
+- Verification: all 29 focused tests collected and passed with `LD_LIBRARY_PATH` unset; PortAudio
+  is no longer required for this focused suite
+- Static verification: Ruff passed; production semantic-map and detection source mypy checks remain
+  clean. The legacy generic detection `conftest.py` is not itself part of the typed source target.

@@ -36,13 +36,13 @@ Size: 112 MiB; 9,231 chunks; 53 entities; verification passed
 
 ## Results
 
-Final metrics-only E08 replay:
+Final corrected E10 replay:
 
-- 207/207 surviving 3D detections received appearance descriptors.
+- 224/224 surviving 3D detections received appearance descriptors.
 - 181/224 valid observations were genuinely fused into existing objects: 80.80% strict accepted-
   fusion rate. This excludes new tracks and any pending/unaccepted relocation.
-- 0.81 ms mean / 0.95 ms p95 association latency.
-- 5.19 ms mean / 10.93 ms p95 appearance extraction per detection.
+- 0.62 ms mean / 0.77 ms p95 association latency.
+- 4.16 ms mean / 8.23 ms p95 appearance extraction per detection.
 - Zero reported move events on a replay believed to be static; this is not ground-truth proof.
 - Two geometric loop closures were reported by the mapper; no semantic correction claim is made.
 - Zero invalid observations, rejected frames, or detector/lifter/descriptor failures in the final
