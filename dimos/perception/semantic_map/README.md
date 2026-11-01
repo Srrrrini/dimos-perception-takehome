@@ -20,6 +20,7 @@ From `dimos shell`, query the useful capability directly:
 
 ```python
 app.SemanticObjectMap.where_is_object("chair")
+app.SemanticObjectMap.navigate_to_object("chair")
 app.SemanticObjectMap.get_metrics()
 ```
 
@@ -46,9 +47,10 @@ app.SemanticObjectMap.get_metrics()
   short-lived and can reset after occlusion; world position remains meaningful across robot
   motion. Class gating prevents overlapping detections such as a seated person and chair from
   being merged.
-- **“Where is X?” instead of navigation:** querying directly demonstrates semantic persistence
-  without inventing navigation stand-off distances or safety behavior that the task does not
-  specify.
+- **Query plus planner goal:** `where_is_object()` reports all confirmed matches. The explicit
+  `navigate_to_object()` skill selects the nearest match, publishes a configurable 1 m standoff
+  goal, and lets the existing Go2 replanning A* module generate the collision-aware path. It never
+  treats the object centroid itself as a traversable goal.
 - **No disk database in the baseline:** the task requires persistence as the robot moves. Runtime
   state is sufficient and avoids an unspecified stale-map/versioning contract.
 
@@ -66,6 +68,10 @@ The detector is selected through `Detection2DModule`'s existing detector factory
 fusion is selected through the `Detection3DLifter` factory, and association/map lifecycle through
 the `SemanticMapBackend` factory. Their standard message boundary remains `Detection3DArray`, so
 variants can be benchmarked without changing the blueprint's downstream contract.
+
+Optional blueprints swap in YOLO-E, prompted Grounding DINO, or Grounding DINO followed by SAM 2
+instance masks. Grounding DINO prompt lists are blueprint configuration, not hard-coded runtime
+policy. The default remains YOLO11n-seg because it provides masks at real-time replay throughput.
 
 The semantic vocabulary and false positives inherit the detector's limitations. The default COCO
 model can, for example, mislabel large indoor fixtures. LiDAR is sparse on glass, thin furniture,

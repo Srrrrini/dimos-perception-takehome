@@ -385,3 +385,58 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
   ground-truth simulation. Existing deterministic tracker tests exercise stationary revisits,
   same-frame exclusivity, global assignment, and moved-object identity as component-level simulated
   scenarios.
+
+## E14 — configurable open vocabulary and DINO + SAM
+
+- Date: 2026-11-01
+- Grounding DINO queries are supplied through `Detection2DModule.detector_kwargs` in the blueprint;
+  the 14-item grocery vocabulary remains a deterministic default, not a fixed adapter constraint.
+- Added an optional Grounding DINO + SAM 2 blueprint. DINO supplies prompted boxes and labels; SAM
+  2.1 Tiny refines each box into an instance mask before the unchanged hybrid LiDAR lifter.
+- Real replay-frame smoke test (row 300, prompts shelf/bottle/box/bag): 7 detections, all seven were
+  `Detection2DSeg` with non-empty masks (3 box, 4 shelf).
+- The first SAM run downloads `sam2.1_t.pt`; subsequent runs use the local Ultralytics cache/path.
+
+## E15 — controlled temporal-association evaluation
+
+- Date: 2026-11-01
+- Command: `uv run python scripts/evaluate_semantic_tracker.py`.
+- Scenario: four same-label, identical-descriptor chairs; small position noise; one occluded chair
+  revisited after dormancy; and one uniquely described box moved 2 m after dormancy.
+- Ground truth: 5 objects. Result: 100% tracker recall, 0 duplicate tracks, 0 identity switches,
+  0 false merges, and 1/1 moved-object re-identification.
+- Scope: tracker component only. This deliberately excludes detector and depth errors and therefore
+  is not presented as end-to-end perception recall.
+
+## E16 — fixed-sample CPU benchmark
+
+- Date: 2026-11-01
+- Command: `uv run python scripts/compare_open_vocab_detectors.py --detector coco-yolo --device cpu`.
+- Same 13 frame IDs and database SHA-256 as E12; YOLO11n-seg, PyTorch 2.7.1+cu128,
+  Ultralytics 8.4.14, Linux x86-64.
+- Result: 257.25 ms cold first frame; 81.11 ms mean, 79.03 ms median, and 95.05 ms p95 warm
+  latency; 12.33 Hz warm throughput. The sample produced 7 detections across 5 labels.
+- The runner now emits exact frame IDs, database hash, model name, package versions, device, and
+  timing statistics in one JSON record.
+
+## E17 — final default replay and submission verification
+
+- Date: 2026-11-01
+- Revision: final implementation after configurable prompts, DINO+SAM, simulation evaluation, CPU
+  benchmark, and semantic navigation were added.
+- Headless command: `dimos --replay --replay-db data/go2_short.db --viewer none run
+  unitree-go2-semantic-map-temporal`.
+- Perception: 855 input frames over 59.80 s; 571 inference calls; 408 2D detections; 222/321 aligned
+  detections lifted to 3D (69.16%); 28.11 ms mean / 42.21 ms p95 inference; no stage failures and
+  one startup transform miss.
+- Map: 47 candidates, 31 confirmed objects, 222 valid observations, 175 accepted fusions, 47 new
+  tracks, 0 unfused observations, 0 invalid observations, and 0 rejected frames. Strict accepted-
+  fusion rate was 78.83%; association latency was 0.64 ms mean / 0.87 ms p95.
+- Temporal: 0 reported move events on the static replay; pose-graph object correction remained
+  disabled. The mapper independently reported two geometric loop closures.
+- Navigation: 0 requests during replay, as expected; unit tests verify nearest-object selection,
+  1 m standoff goal geometry, missing-pose rejection, and connection to the existing A* planner.
+- Fresh Rerun artifact:
+  `recordings/20261101-125124-ea4c-unitree-go2-semantic-map-temporal/rerun.rrd`, SHA-256
+  `8e70e16ac003a0dbbab34154c204e7002e061505fd90524d8ef966751d5a7e9f`; 112 MiB and verified.
+- Verification: 48 focused tests passed. Ruff and production-source mypy checks passed.

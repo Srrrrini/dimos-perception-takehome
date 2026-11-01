@@ -15,15 +15,15 @@ verifies the blueprint's module, channel, and RPC wiring using the same registry
 The full recording is intentionally not committed because it is 112 MiB. It was generated at:
 
 ```text
-recordings/20261030-204447-6317-unitree-go2-semantic-map-temporal/rerun.rrd
+recordings/20261101-125124-ea4c-unitree-go2-semantic-map-temporal/rerun.rrd
 ```
 
 Integrity:
 
 ```text
-SHA-256: 00fd881da11eeee07395db895637616e30aaa584fba18182064df5d316ed7791
+SHA-256: 8e70e16ac003a0dbbab34154c204e7002e061505fd90524d8ef966751d5a7e9f
 Rerun verification: 1 file verified without error
-Rerun contents: 9,231 chunks, 53 entity paths, 9,268 rows
+Size: 112 MiB
 ```
 
 Regenerate it from the repository root with:

@@ -9,7 +9,8 @@ swappable modules joined by existing message contracts rather than a monolithic 
 - Global one-to-one assignment prevents two observations in one frame from claiming the same map
   object.
 - The temporal backend tracks active/dormant/moved lifecycle, uses conservative ResNet-18
-  appearance ReID for revisits, and exposes `where_is_object()` plus structured metrics.
+  appearance ReID for revisits, and exposes `where_is_object()`, `navigate_to_object()`, and
+  structured metrics. Navigation publishes a 1 m standoff goal to the existing Go2 A* planner.
 - Pose-graph reprojection is deliberately disabled: this replay does not expose a stable,
   timestamp-matched source keyframe and detections use an accumulated global cloud. Enabling the
   earlier newest-keyframe approximation would make an unsupported geometry claim.
@@ -21,8 +22,8 @@ comparisons blueprint changes rather than rewrites.
 Pretrained weights may download automatically on first use, per the take-home clarification. The
 default YOLO11-seg and ResNet-18 paths already do this; the optional Grounding DINO path uses the
 Hugging Face cache, and YOLO-E falls back from DimOS Git-LFS data to Ultralytics' first-use download.
-The measured results below used CUDA. CPU execution remains supported by the detector interfaces but
-was not benchmarked for this submission.
+The default CUDA replay is measured below. A fixed 13-frame CPU benchmark is also included and
+records the database hash, frame IDs, model/package versions, cold latency, and warm latency.
 
 ## Replay proof
 
@@ -35,25 +36,31 @@ The screenshot shows the camera, odometry, telemetry, accumulated LiDAR map, and
 and verified:
 
 ```text
-recordings/20261030-204447-6317-unitree-go2-semantic-map-temporal/rerun.rrd
-SHA-256: 00fd881da11eeee07395db895637616e30aaa584fba18182064df5d316ed7791
-Size: 112 MiB; 9,231 chunks; 53 entities; verification passed
+recordings/20261101-125124-ea4c-unitree-go2-semantic-map-temporal/rerun.rrd
+SHA-256: 8e70e16ac003a0dbbab34154c204e7002e061505fd90524d8ef966751d5a7e9f
+Size: 112 MiB; `rerun rrd verify` passed
 ```
 
 ## Results
 
-Final corrected E10 replay:
+Final headless E17 replay:
 
-- 224/224 surviving 3D detections received appearance descriptors.
-- 181/224 valid observations were genuinely fused into existing objects: 80.80% strict accepted-
+- 222/222 surviving 3D detections received appearance descriptors.
+- 175/222 valid observations were genuinely fused into existing objects: 78.83% strict accepted-
   fusion rate. This excludes new tracks and any pending/unaccepted relocation.
-- 0.62 ms mean / 0.77 ms p95 association latency.
-- 4.16 ms mean / 8.23 ms p95 appearance extraction per detection.
+- 0.64 ms mean / 0.87 ms p95 association latency.
+- 4.25 ms mean / 8.27 ms p95 appearance extraction per detection.
+- 571 detector calls at 28.11 ms mean / 42.21 ms p95 inference latency; 222/321 aligned 2D
+  detections survived 3D lifting (69.16%).
 - Zero reported move events on a replay believed to be static; this is not ground-truth proof.
 - Two geometric loop closures were reported by the mapper; no semantic correction claim is made.
 - Zero invalid observations, rejected frames, or detector/lifter/descriptor failures in the final
-  corrected replay.
-- 35 focused semantic-map, detector-adapter, blueprint, appearance, and lifting tests pass; lint and
+  headless replay.
+- The fixed CPU sample ran YOLO11n-seg at 81.11 ms mean / 95.05 ms p95 warm latency (12.33 Hz).
+- Controlled tracker simulation measured 100% track recall, 0 duplicate tracks, 0 identity
+  switches, 0 false merges, and 1/1 moved-object re-identification across five known objects. This
+  is component-level association evidence, not end-to-end detector recall.
+- 48 focused semantic-map, detector-adapter, blueprint, appearance, and lifting tests pass; lint and
   type checking pass.
 
 The replay has no ground-truth object annotations, so these are runtime, consistency, duplicate
