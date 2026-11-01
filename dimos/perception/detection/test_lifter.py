@@ -120,6 +120,26 @@ def test_detector_exception_is_isolated_to_one_frame() -> None:
     module._close_module()
 
 
+def test_detection_module_reports_per_label_counts() -> None:
+    image = MagicMock()
+    image.ts = 1.0
+    cup = MagicMock()
+    cup.name = "cup"
+    shelf = MagicMock()
+    shelf.name = "shelf"
+    detections = ImageDetections2D(image=image, detections=[cup, cup, shelf])
+    module = Detection3DModule(camera_info=CAMERA_INFO, detector=MagicMock)
+
+    with patch.object(Detection2DModule, "process_image_frame", return_value=detections):
+        module.process_image_frame(image)
+
+    assert module.get_perception_metrics()["detections_2d_by_label"] == {
+        "cup": 2,
+        "shelf": 1,
+    }
+    module._close_module()
+
+
 def test_lifter_exception_is_isolated_to_one_frame() -> None:
     image = MagicMock()
     image.ts = 1.0

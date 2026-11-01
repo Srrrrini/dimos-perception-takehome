@@ -84,6 +84,8 @@ def test_module_confirms_publishes_and_queries_persistent_object(
     assert metrics["new_tracks"] == 1
     assert metrics["association_rate"] == 0.5
     assert metrics["same_label_pairs_within_1_0m"] == 0
+    assert metrics["candidate_objects_by_label"] == {"chair": 1}
+    assert metrics["confirmed_objects_by_label"] == {"chair": 1}
 
 
 def test_unconfirmed_object_is_not_returned(semantic_map: SemanticObjectMap) -> None:
