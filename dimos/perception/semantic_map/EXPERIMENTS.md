@@ -329,10 +329,27 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
 ## E12 — closed- versus open-vocabulary detector comparison
 
 - Date: 2026-10-31
+- Code revision: `24c4048876` for the compared implementations; the reproducibility runner was
+  added immediately afterward in the E12 documentation commit.
 - Method: add interchangeable YOLO-E prompt-free and Grounding DINO detector blueprints, plus
   per-label 2D, 3D, candidate, and confirmed-object counters. All variants retain the same hybrid
   LiDAR lifter, appearance descriptor, temporal tracker, query interface, and replay.
-- Identical-frame sample: on 13 fixed replay frames, COCO YOLO produced 7 detections across 5
+- Dataset: `data/go2_short.db`, SHA-256
+  `4f056a042d58ad1dbc8248e408bd61d98bb90e5989cf0520c5400a1088dfe1b9`.
+- Fixed sample: `color_image_blob` row IDs
+  `50,100,150,200,250,300,350,400,450,500,600,700,800`. Run each detector in a fresh process:
+  `uv run python scripts/compare_open_vocab_detectors.py --detector coco-yolo`, then repeat with
+  `--detector yoloe` and `--detector grounding-dino`. This host additionally required its extracted
+  TurboJPEG directory in `LD_LIBRARY_PATH`; a normal system installation needs no prefix.
+- Versions: Python 3.12.12, PyTorch 2.7.1+cu128, Ultralytics 8.4.14, Transformers 4.53.3.
+- Models/config: YOLO11n-seg COCO, confidence 0.50 and IoU 0.60, weight SHA-256
+  `55ed65c56c91713d23e8402371c6c49a6fd84f257f7dce452e8d70e41dcbe152`; YOLO-E-11s-seg-pf
+  prompt-free LRPC, confidence 0.60, IoU 0.60 and maximum area ratio 0.30, weight SHA-256
+  `292bdf157a9ec7315f34b567cb93467c5043cd1889a1cc18abbfdeb88d7a948d`; Grounding DINO Tiny
+  revision `a2bb814dd30d776dcf7e30523b00659f4f141c71`, confidence 0.25 and class-wise NMS IoU 0.50,
+  weight SHA-256 `1a2412ef99bd74bcd3c2a246fa1e48581f8889a1300c9051974741314fc042f3`, using the 14 prompts
+  defined by `GroundingDino2DDetector.DEFAULT_QUERIES`.
+- Identical-frame result: on those 13 frames, COCO YOLO produced 7 detections across 5
   labels; prompt-free YOLO-E produced 10 across 9 labels; prompted Grounding DINO produced 118
   across 13 labels. DINO included shelf/carton/display-case/cup/box/bottle/can concepts absent or
   sparse in the COCO result. YOLO-E broadened vocabulary but emitted ambiguous scene labels such as
