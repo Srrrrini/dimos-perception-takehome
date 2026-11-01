@@ -18,6 +18,12 @@ Detector, appearance encoder, 3D lifter, and map backend are independently facto
 standard boundaries remain `Detection2DArray` and `Detection3DArray`, making later model/fusion
 comparisons blueprint changes rather than rewrites.
 
+Pretrained weights may download automatically on first use, per the take-home clarification. The
+default YOLO11-seg and ResNet-18 paths already do this; the optional Grounding DINO path uses the
+Hugging Face cache, and YOLO-E falls back from DimOS Git-LFS data to Ultralytics' first-use download.
+The measured results below used CUDA. CPU execution remains supported by the detector interfaces but
+was not benchmarked for this submission.
+
 ## Replay proof
 
 ![Final replay](evidence/final_replay.png)
@@ -47,11 +53,17 @@ Final corrected E10 replay:
 - Two geometric loop closures were reported by the mapper; no semantic correction claim is made.
 - Zero invalid observations, rejected frames, or detector/lifter/descriptor failures in the final
   corrected replay.
-- 29 focused semantic-map, appearance, and lifting tests pass; lint and type checking pass.
+- 35 focused semantic-map, detector-adapter, blueprint, appearance, and lifting tests pass; lint and
+  type checking pass.
 
 The replay has no ground-truth object annotations, so these are runtime, consistency, duplicate
 proxy, and safety measurements—not invented precision/recall claims. A moved-object recall claim
 requires an annotated move-and-revisit recording.
+
+The team confirmed that no annotated evaluation dataset is available and suggested simulation for
+accuracy evaluation. Accordingly, replay results remain evidence of runtime and internal
+consistency; deterministic tracker tests cover known stationary, duplicate, revisit, and moved-object
+scenarios without presenting them as end-to-end detector accuracy.
 
 Detailed experiment history, including rejected trials, is in
 `dimos/perception/semantic_map/EXPERIMENTS.md`. Review-driven corrections and invalidated claims are

@@ -370,3 +370,18 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
   SAM) before it is a practical online 3D mapper. YOLO-E is the strongest single-stage open-world
   candidate because it preserves masks and near-real-time throughput, but its broad prompt-free
   labels need vocabulary normalization or explicit prompts.
+
+## E13 — take-home clarification follow-up
+
+- Date: 2026-11-01
+- Team clarification: automatic first-use pretrained-weight downloads are preferred. Additional
+  basic recordings may be available, but no annotated evaluation dataset exists; simulation is an
+  acceptable source of controlled evaluation scenarios.
+- Runtime change: YOLO-E now first tries the existing DimOS Git-LFS cache and falls back to the
+  standard Ultralytics model-name download when the archive, Git LFS, or extraction is unavailable.
+  YOLO11-seg, ResNet-18, and Grounding DINO already use first-use download/cache behavior.
+- Evaluation policy: retain replay throughput, fusion-survival, association, and duplicate-proxy
+  evidence, while reserving recall, identity-switch, and moved-object accuracy claims for controlled
+  ground-truth simulation. Existing deterministic tracker tests exercise stationary revisits,
+  same-frame exclusivity, global assignment, and moved-object identity as component-level simulated
+  scenarios.
