@@ -147,4 +147,9 @@ class Detection2DModule(Module):
 
     @rpc
     def stop(self) -> None:
-        return super().stop()
+        try:
+            detector_stop = getattr(self.detector, "stop", None)
+            if callable(detector_stop):
+                detector_stop()
+        finally:
+            super().stop()
