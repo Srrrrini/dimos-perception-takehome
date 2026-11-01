@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable
 import math
 from threading import RLock
@@ -237,9 +238,13 @@ class SemanticObjectMap(Module):
         observations = sum(obj.observation_count for obj in confirmed)
         deviations = [obj.position_stddev_m for obj in confirmed]
         lifetimes = [obj.last_seen - obj.first_seen for obj in confirmed]
+        candidate_labels = Counter(obj.label for obj in all_objects)
+        confirmed_labels = Counter(obj.label for obj in confirmed)
         return {
             "candidate_objects": len(all_objects),
             "confirmed_objects": len(confirmed),
+            "candidate_objects_by_label": dict(sorted(candidate_labels.items())),
+            "confirmed_objects_by_label": dict(sorted(confirmed_labels.items())),
             "confirmation_ratio": len(confirmed) / len(all_objects) if all_objects else 0.0,
             "frames_3d": frames_3d,
             "observations_in": observations_in,

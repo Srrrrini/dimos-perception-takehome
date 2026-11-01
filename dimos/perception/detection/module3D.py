@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+from collections import Counter
 from collections.abc import Callable
 import math
 from threading import RLock
@@ -83,10 +84,13 @@ class Detection3DModule(Detection2DModule):
         self._last_input_ts: float | None = None
         self._inference_calls = 0
         self._detections_2d = 0
+        self._detections_2d_by_label: Counter[str] = Counter()
         self._inference_ms: list[float] = []
         self._fusion_calls = 0
         self._fusion_detections_2d = 0
         self._fusion_detections_3d = 0
+        self._fusion_2d_by_label: Counter[str] = Counter()
+        self._fusion_3d_by_label: Counter[str] = Counter()
         self._missing_transforms = 0
         self._alignment_ms: list[float] = []
         self._fusion_ms: list[float] = []
@@ -119,6 +123,7 @@ class Detection3DModule(Detection2DModule):
         with self._metrics_lock:
             self._inference_calls += 1
             self._detections_2d += len(detections)
+            self._detections_2d_by_label.update(detection.name for detection in detections)
             self._inference_ms.append(elapsed_ms)
         return detections
 
@@ -133,6 +138,7 @@ class Detection3DModule(Detection2DModule):
             with self._metrics_lock:
                 self._fusion_calls += 1
                 self._fusion_detections_2d += len(detections)
+                self._fusion_2d_by_label.update(detection.name for detection in detections)
                 self._missing_transforms += 1
                 self._fusion_ms.append((time.perf_counter() - started_at) * 1000.0)
             return ImageDetections3DPC(detections.image, [])
@@ -148,6 +154,7 @@ class Detection3DModule(Detection2DModule):
                 self._fusion_calls += 1
                 self._fusion_failures += 1
                 self._fusion_detections_2d += len(detections)
+                self._fusion_2d_by_label.update(detection.name for detection in detections)
                 self._fusion_ms.append((time.perf_counter() - started_at) * 1000.0)
             return ImageDetections3DPC(detections.image, [])
         sources = {
@@ -183,6 +190,8 @@ class Detection3DModule(Detection2DModule):
             self._fusion_calls += 1
             self._fusion_detections_2d += len(detections)
             self._fusion_detections_3d += len(result)
+            self._fusion_2d_by_label.update(detection.name for detection in detections)
+            self._fusion_3d_by_label.update(detection.name for detection in result)
             self._alignment_ms.append(alignment_ms)
             self._fusion_ms.append((time.perf_counter() - started_at) * 1000.0)
         return result
@@ -222,11 +231,14 @@ class Detection3DModule(Detection2DModule):
                 "inference_failures": self._inference_failures,
                 "effective_inference_hz": self._inference_calls / elapsed_s,
                 "detections_2d": self._detections_2d,
+                "detections_2d_by_label": dict(sorted(self._detections_2d_by_label.items())),
                 "inference_ms": self._distribution(self._inference_ms),
                 "fusion_calls": self._fusion_calls,
                 "fusion_failures": self._fusion_failures,
                 "fusion_detections_2d": self._fusion_detections_2d,
                 "fusion_detections_3d": self._fusion_detections_3d,
+                "fusion_2d_by_label": dict(sorted(self._fusion_2d_by_label.items())),
+                "fusion_3d_by_label": dict(sorted(self._fusion_3d_by_label.items())),
                 "fusion_survival_ratio": (
                     self._fusion_detections_3d / self._fusion_detections_2d
                     if self._fusion_detections_2d

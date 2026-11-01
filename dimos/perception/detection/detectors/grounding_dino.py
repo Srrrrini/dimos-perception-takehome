@@ -24,6 +24,7 @@ import torch
 
 from dimos.models.base import HuggingFaceModel, HuggingFaceModelConfig
 from dimos.msgs.sensor_msgs.Image import Image
+from dimos.perception.detection.detectors.base import Detector
 from dimos.perception.detection.type.detection2d.bbox import Detection2DBBox
 from dimos.perception.detection.type.detection2d.imageDetections2D import ImageDetections2D
 
@@ -141,3 +142,42 @@ class GroundingDinoDetector(HuggingFaceModel):
         if "_processor" in self.__dict__:
             del self.__dict__["_processor"]
         super().stop()
+
+
+class GroundingDino2DDetector(Detector):
+    """Detector-module adapter with a fixed indoor grocery vocabulary."""
+
+    DEFAULT_QUERIES = (
+        "person",
+        "chair",
+        "table",
+        "shelf",
+        "refrigerator",
+        "display case",
+        "bottle",
+        "can",
+        "carton",
+        "box",
+        "bag",
+        "cup",
+        "laptop",
+        "potted plant",
+    )
+
+    def __init__(
+        self,
+        queries: tuple[str, ...] = DEFAULT_QUERIES,
+        threshold: float = 0.25,
+    ) -> None:
+        self.queries = queries
+        self.threshold = threshold
+        self.model = GroundingDinoDetector()
+
+    def process_image(self, image: Image) -> ImageDetections2D:
+        return self.predict_image(image)
+
+    def predict_image(self, image: Image) -> ImageDetections2D:
+        return self.model.query_detections(image, list(self.queries), self.threshold)
+
+    def stop(self) -> None:
+        self.model.stop()

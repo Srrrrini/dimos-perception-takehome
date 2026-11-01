@@ -17,7 +17,9 @@
 
 from dimos.core.coordination.blueprints import autoconnect
 from dimos.perception.detection.appearance import ResNetAppearanceDescriptor
+from dimos.perception.detection.detectors.grounding_dino import GroundingDino2DDetector
 from dimos.perception.detection.detectors.yolo import Yolo11Seg2DDetector
+from dimos.perception.detection.detectors.yoloe import Yoloe2DDetector
 from dimos.perception.detection.lifter import HybridMaskBoxLifter
 from dimos.perception.detection.module3D import Detection3DModule
 from dimos.perception.semantic_map.module import SemanticObjectMap
@@ -93,6 +95,36 @@ unitree_go2_semantic_map_temporal = (
         Detection3DModule.blueprint(
             camera_info=GO2Connection.camera_info_static,
             detector=Yolo11Seg2DDetector,
+            lifter=HybridMaskBoxLifter,
+            appearance_descriptor=ResNetAppearanceDescriptor,
+        ),
+        SemanticObjectMap.blueprint(backend=_resnet_temporal_backend),
+    )
+    .remappings([(Detection3DModule, "pointcloud", "global_map")])
+    .global_config(n_workers=12, robot_model="unitree_go2")
+)
+
+unitree_go2_semantic_map_temporal_yoloe = (
+    autoconnect(
+        unitree_go2,
+        Detection3DModule.blueprint(
+            camera_info=GO2Connection.camera_info_static,
+            detector=Yoloe2DDetector,
+            lifter=HybridMaskBoxLifter,
+            appearance_descriptor=ResNetAppearanceDescriptor,
+        ),
+        SemanticObjectMap.blueprint(backend=_resnet_temporal_backend),
+    )
+    .remappings([(Detection3DModule, "pointcloud", "global_map")])
+    .global_config(n_workers=12, robot_model="unitree_go2")
+)
+
+unitree_go2_semantic_map_temporal_grounding_dino = (
+    autoconnect(
+        unitree_go2,
+        Detection3DModule.blueprint(
+            camera_info=GO2Connection.camera_info_static,
+            detector=GroundingDino2DDetector,
             lifter=HybridMaskBoxLifter,
             appearance_descriptor=ResNetAppearanceDescriptor,
         ),
