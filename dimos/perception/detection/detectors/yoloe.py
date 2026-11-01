@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from enum import Enum
+from pathlib import Path
 import threading
 from typing import Any
 
@@ -68,7 +69,17 @@ class Yoloe2DDetector(Detector):
             else:
                 model_name = "yoloe-11s-seg.pt"
 
-        self.model = YOLOE(get_data(model_path) / model_name)
+        model_source: str | Path
+        try:
+            model_source = get_data(model_path) / model_name
+        except (FileNotFoundError, RuntimeError) as error:
+            logger.warning(
+                "DimOS YOLO-E weights unavailable; using Ultralytics first-run download",
+                model=model_name,
+                error=str(error),
+            )
+            model_source = model_name
+        self.model = YOLOE(model_source)
         self.prompt_mode = prompt_mode
         self._text_prompts: tuple[str, ...] | None = None
         self._visual_prompts: dict[str, NDArray[Any]] | None = None
