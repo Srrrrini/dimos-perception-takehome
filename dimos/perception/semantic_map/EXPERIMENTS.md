@@ -325,3 +325,31 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
   is no longer required for this focused suite
 - Static verification: Ruff passed; production semantic-map and detection source mypy checks remain
   clean. The legacy generic detection `conftest.py` is not itself part of the typed source target.
+
+## E12 — closed- versus open-vocabulary detector comparison
+
+- Date: 2026-10-31
+- Method: add interchangeable YOLO-E prompt-free and Grounding DINO detector blueprints, plus
+  per-label 2D, 3D, candidate, and confirmed-object counters. All variants retain the same hybrid
+  LiDAR lifter, appearance descriptor, temporal tracker, query interface, and replay.
+- Identical-frame sample: on 13 fixed replay frames, COCO YOLO produced 7 detections across 5
+  labels; prompt-free YOLO-E produced 10 across 9 labels; prompted Grounding DINO produced 118
+  across 13 labels. DINO included shelf/carton/display-case/cup/box/bottle/can concepts absent or
+  sparse in the COCO result. YOLO-E broadened vocabulary but emitted ambiguous scene labels such as
+  `bookstore`, `newsstand`, and `potty`.
+- Corrected DINO partial replay: 65 inference calls, 616 2D detections, 189/463 aligned detections
+  lifted to 3D (40.82%), 128 candidate tracks, and 42 confirmed objects. Confirmed labels were
+  carton 4, chair 9, display case 12, person 1, potted plant 1, shelf 9, and table 6.
+- DINO runtime/consistency: 931.35 ms mean / 991.69 ms p95 inference, 0.70 Hz effective processing,
+  32.28% strict association, and nearby same-label pairs 5/7/10 at 0.5/0.75/1.0 m. This run was
+  stopped after the sensor replay completed while DINO was still draining work, so counts are not a
+  full-run recall comparison.
+- Download incident: the first Hugging Face/Xet download stalled after producing a full-size but
+  checksum-invalid model file. It loaded but returned identical low scores. The rerun above used a
+  clean file whose SHA-256 matched the repository ETag
+  `1a2412ef99bd74bcd3c2a246fa1e48581f8889a1300c9051974741314fc042f3`.
+- Conclusion: retain YOLO11-seg as the default real-time baseline. Grounding DINO is useful as a
+  slower prompted recall/oracle pass but needs frame dropping plus mask generation (for example,
+  SAM) before it is a practical online 3D mapper. YOLO-E is the strongest single-stage open-world
+  candidate because it preserves masks and near-real-time throughput, but its broad prompt-free
+  labels need vocabulary normalization or explicit prompts.
