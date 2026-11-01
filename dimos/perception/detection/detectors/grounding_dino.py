@@ -27,6 +27,7 @@ from dimos.msgs.sensor_msgs.Image import Image
 from dimos.perception.detection.detectors.base import Detector
 from dimos.perception.detection.type.detection2d.bbox import Detection2DBBox
 from dimos.perception.detection.type.detection2d.imageDetections2D import ImageDetections2D
+from dimos.perception.detection.type.detection2d.seg import Detection2DSeg
 
 
 class GroundingDinoConfig(HuggingFaceModelConfig):
@@ -145,7 +146,7 @@ class GroundingDinoDetector(HuggingFaceModel):
 
 
 class GroundingDino2DDetector(Detector):
-    """Detector-module adapter with a fixed indoor grocery vocabulary."""
+    """Detector-module adapter with a configurable text-query vocabulary."""
 
     DEFAULT_QUERIES = (
         "person",
@@ -181,3 +182,70 @@ class GroundingDino2DDetector(Detector):
 
     def stop(self) -> None:
         self.model.stop()
+
+
+class GroundingDinoSam2DDetector(GroundingDino2DDetector):
+    """Grounding DINO boxes refined into instance masks by SAM 2."""
+
+    def __init__(
+        self,
+        queries: tuple[str, ...] = GroundingDino2DDetector.DEFAULT_QUERIES,
+        threshold: float = 0.25,
+        sam_model: str = "sam2.1_t.pt",
+        device: str | None = None,
+    ) -> None:
+        super().__init__(queries=queries, threshold=threshold)
+        self.sam_model = sam_model
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+
+    @cached_property
+    def _sam(self):  # type: ignore[no-untyped-def]
+        from ultralytics import SAM  # type: ignore[attr-defined]
+
+        return SAM(self.sam_model)
+
+    def predict_image(self, image: Image) -> ImageDetections2D:
+        boxes = super().predict_image(image)
+        if not boxes.detections:
+            return boxes
+        results = self._sam.predict(
+            source=image.to_opencv(),
+            bboxes=[detection.bbox for detection in boxes],
+            device=self.device,
+            verbose=False,
+        )
+        if not results or results[0].masks is None:
+            return boxes
+        masks = results[0].masks.data
+        if len(masks) != len(boxes):
+            return boxes
+
+        import cv2
+
+        segmented: list[Detection2DBBox] = []
+        for detection, mask_tensor in zip(boxes, masks, strict=True):
+            mask = mask_tensor.detach().cpu().numpy()
+            if mask.shape != (image.height, image.width):
+                mask = cv2.resize(
+                    mask,
+                    (image.width, image.height),
+                    interpolation=cv2.INTER_NEAREST,
+                )
+            segmented.append(
+                Detection2DSeg(
+                    bbox=detection.bbox,
+                    track_id=detection.track_id,
+                    class_id=detection.class_id,
+                    confidence=detection.confidence,
+                    name=detection.name,
+                    ts=detection.ts,
+                    image=image,
+                    mask=(mask > 0).astype(np.uint8) * 255,
+                )
+            )
+        return ImageDetections2D(image=image, detections=segmented)
+
+    def stop(self) -> None:
+        if "_sam" in self.__dict__:
+            del self.__dict__["_sam"]
+        super().stop()

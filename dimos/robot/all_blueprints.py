@@ -188,6 +188,7 @@ all_blueprints = {
     "unitree-go2-semantic-map-seg": "dimos.robot.unitree.go2.blueprints.smart.unitree_go2_semantic_map:unitree_go2_semantic_map_seg",
     "unitree-go2-semantic-map-temporal": "dimos.robot.unitree.go2.blueprints.smart.unitree_go2_semantic_map:unitree_go2_semantic_map_temporal",
     "unitree-go2-semantic-map-temporal-grounding-dino": "dimos.robot.unitree.go2.blueprints.smart.unitree_go2_semantic_map:unitree_go2_semantic_map_temporal_grounding_dino",
+    "unitree-go2-semantic-map-temporal-grounding-dino-sam": "dimos.robot.unitree.go2.blueprints.smart.unitree_go2_semantic_map:unitree_go2_semantic_map_temporal_grounding_dino_sam",
     "unitree-go2-semantic-map-temporal-yoloe": "dimos.robot.unitree.go2.blueprints.smart.unitree_go2_semantic_map:unitree_go2_semantic_map_temporal_yoloe",
     "unitree-go2-spatial": "dimos.robot.unitree.go2.blueprints.smart.unitree_go2_spatial:unitree_go2_spatial",
     "unitree-go2-temporal-memory": "dimos.robot.unitree.go2.blueprints.agentic.unitree_go2_temporal_memory:unitree_go2_temporal_memory",
