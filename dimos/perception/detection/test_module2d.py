@@ -18,3 +18,19 @@ def test_module_stop_releases_detector() -> None:
     module.stop()
 
     detector.stop.assert_called_once_with()
+
+
+def test_module_passes_configured_detector_arguments() -> None:
+    detector_factory = MagicMock(return_value=MagicMock())
+
+    module = Detection2DModule(
+        camera_info=MagicMock(spec=CameraInfo),
+        detector=detector_factory,
+        detector_kwargs={"queries": ("shelf", "carton"), "threshold": 0.3},
+    )
+
+    detector_factory.assert_called_once_with(
+        queries=("shelf", "carton"),
+        threshold=0.3,
+    )
+    module._close_module()

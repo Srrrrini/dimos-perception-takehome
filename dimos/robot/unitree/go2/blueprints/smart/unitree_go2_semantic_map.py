@@ -125,6 +125,7 @@ unitree_go2_semantic_map_temporal_grounding_dino = (
         Detection3DModule.blueprint(
             camera_info=GO2Connection.camera_info_static,
             detector=GroundingDino2DDetector,
+            detector_kwargs={"queries": GroundingDino2DDetector.DEFAULT_QUERIES},
             lifter=HybridMaskBoxLifter,
             appearance_descriptor=ResNetAppearanceDescriptor,
         ),

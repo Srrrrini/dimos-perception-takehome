@@ -24,3 +24,15 @@ def test_open_vocabulary_blueprint_configures_detector(blueprint, detector) -> N
     detection = next(atom for atom in blueprint.blueprints if atom.module is Detection3DModule)
 
     assert detection.kwargs["detector"] is detector
+
+
+def test_grounding_dino_blueprint_exposes_queries_as_configuration() -> None:
+    detection = next(
+        atom
+        for atom in unitree_go2_semantic_map_temporal_grounding_dino.blueprints
+        if atom.module is Detection3DModule
+    )
+
+    assert detection.kwargs["detector_kwargs"] == {
+        "queries": GroundingDino2DDetector.DEFAULT_QUERIES
+    }
