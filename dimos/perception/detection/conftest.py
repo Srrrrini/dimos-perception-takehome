@@ -34,7 +34,6 @@ from dimos.perception.detection.type.detection3d.imageDetections3DPC import Imag
 from dimos.perception.detection.type.detection3d.pointcloud import Detection3DPC
 from dimos.perception.experimental.moduleDB import ObjectDBModule
 from dimos.protocol.tf.tf import TF
-from dimos.robot.unitree.go2 import connection
 from dimos.robot.unitree.type.odometry import Odometry
 from dimos.utils.data import get_data
 from dimos.utils.testing.legacy_pickle import LegacyPickleStore
@@ -70,6 +69,8 @@ def tf():
 def get_moment(tf):
     @functools.lru_cache(maxsize=1)
     def moment_provider(**kwargs) -> Moment:
+        from dimos.robot.unitree.go2 import connection
+
         print("MOMENT PROVIDER ARGS:", kwargs)
         seek = kwargs.get("seek", 10.0)
 
@@ -243,6 +244,7 @@ def get_moment_3dpc(get_moment_2d) -> Generator[Callable[[], Moment3D], None, No
 def object_db_module(get_moment):
     """Create and populate an ObjectDBModule with detections from multiple frames."""
     from dimos.perception.detection.detectors.yolo import Yolo2DDetector
+    from dimos.robot.unitree.go2 import connection
 
     c = mock.create_autospec(CameraInfo, spec_set=True, instance=True)
     module2d = Detection2DModule(detector=lambda: Yolo2DDetector(device="cpu"), camera_info=c)

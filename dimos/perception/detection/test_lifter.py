@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 
 from dimos.msgs.geometry_msgs.Transform import Transform
+from dimos.msgs.sensor_msgs.CameraInfo import CameraInfo
 from dimos.msgs.sensor_msgs.PointCloud2 import PointCloud2
 from dimos.perception.detection.lifter import (
     Detection3DLifter,
@@ -29,7 +30,8 @@ from dimos.perception.detection.type.detection2d.imageDetections2D import ImageD
 from dimos.perception.detection.type.detection2d.seg import Detection2DSeg
 from dimos.perception.detection.type.detection3d.imageDetections3DPC import ImageDetections3DPC
 from dimos.perception.detection.type.detection3d.pointcloud import Detection3DPC
-from dimos.robot.unitree.go2.connection import GO2Connection
+
+CAMERA_INFO = MagicMock(spec=CameraInfo)
 
 
 def test_projected_lifter_delegates_to_batch_projection() -> None:
@@ -40,13 +42,13 @@ def test_projected_lifter_delegates_to_batch_projection() -> None:
     expected = MagicMock(spec=ImageDetections3DPC)
 
     with patch.object(ImageDetections3DPC, "from_2d", return_value=expected) as from_2d:
-        actual = lifter.lift(detections, cloud, GO2Connection.camera_info_static, transform)
+        actual = lifter.lift(detections, cloud, CAMERA_INFO, transform)
 
     assert actual is expected
     from_2d.assert_called_once_with(
         detections,
         cloud,
-        GO2Connection.camera_info_static,
+        CAMERA_INFO,
         transform,
         None,
     )
@@ -55,7 +57,7 @@ def test_projected_lifter_delegates_to_batch_projection() -> None:
 def test_detection_module_accepts_injected_lifter() -> None:
     lifter = MagicMock(spec=Detection3DLifter)
     module = Detection3DModule(
-        camera_info=GO2Connection.camera_info_static,
+        camera_info=CAMERA_INFO,
         detector=MagicMock,
         lifter=lambda: lifter,
     )
@@ -95,7 +97,7 @@ def test_hybrid_lifter_recovers_sparse_mask_with_box() -> None:
         patch.object(lifter, "_count_mask_points", return_value=1),
         patch.object(Detection3DPC, "from_projection", return_value=fallback) as project,
     ):
-        result = lifter.lift(detections, cloud, GO2Connection.camera_info_static, transform)
+        result = lifter.lift(detections, cloud, CAMERA_INFO, transform)
 
     assert result.detections == [fallback]
     assert not hasattr(project.call_args.args[0], "mask")
@@ -106,7 +108,7 @@ def test_detector_exception_is_isolated_to_one_frame() -> None:
     image = MagicMock()
     image.ts = 1.0
     module = Detection3DModule(
-        camera_info=GO2Connection.camera_info_static,
+        camera_info=CAMERA_INFO,
         detector=MagicMock,
     )
 
@@ -128,7 +130,7 @@ def test_lifter_exception_is_isolated_to_one_frame() -> None:
     lifter = MagicMock(spec=Detection3DLifter)
     lifter.lift.side_effect = RuntimeError("bad cloud")
     module = Detection3DModule(
-        camera_info=GO2Connection.camera_info_static,
+        camera_info=CAMERA_INFO,
         detector=MagicMock,
         lifter=lambda: lifter,
     )
