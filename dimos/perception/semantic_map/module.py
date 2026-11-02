@@ -122,8 +122,7 @@ class SemanticObjectMap(Module):
             invalid_frame = (
                 message.frame_id != self.config.expected_frame_id
                 or not math.isfinite(message_ts)
-                or message_ts
-                < self._latest_detection_ts - self.config.max_timestamp_lateness_s
+                or message_ts < self._latest_detection_ts - self.config.max_timestamp_lateness_s
             )
             if invalid_frame:
                 self._rejected_frames += 1
@@ -170,9 +169,7 @@ class SemanticObjectMap(Module):
             accepted_fusions = max(0, samples_after - samples_before - created)
             self._new_tracks += created
             self._matched_observations += accepted_fusions
-            self._unfused_observations += max(
-                0, len(observations) - created - accepted_fusions
-            )
+            self._unfused_observations += max(0, len(observations) - created - accepted_fusions)
             self._association_ms.append((time.perf_counter() - started_at) * 1000.0)
             mapped = self._tracker.confirmed(self.config.min_observations)
         self.semantic_map.publish(self._to_message(mapped, message.ts, message.frame_id))
@@ -394,7 +391,9 @@ class SemanticObjectMap(Module):
         confidence = float(best.hypothesis.score)
         timestamp = to_timestamp(detection.header.stamp) or fallback_ts
         if (
-            not all(math.isfinite(value) for value in (*position, *dimensions, confidence, timestamp))
+            not all(
+                math.isfinite(value) for value in (*position, *dimensions, confidence, timestamp)
+            )
             or any(value <= 0.0 for value in dimensions)
             or not 0.0 <= confidence <= 1.0
         ):
@@ -403,8 +402,10 @@ class SemanticObjectMap(Module):
         anchor_position = None
         if anchor_keyframe is not None:
             pose = keyframe_poses[anchor_keyframe]
-            anchor_position_array = Rotation.from_quat(pose[3:7]).inv().apply(
-                np.asarray(position) - np.asarray(pose[:3])
+            anchor_position_array = (
+                Rotation.from_quat(pose[3:7])
+                .inv()
+                .apply(np.asarray(position) - np.asarray(pose[:3]))
             )
             anchor_position = (
                 float(anchor_position_array[0]),

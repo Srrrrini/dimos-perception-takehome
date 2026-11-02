@@ -168,13 +168,9 @@ def test_temporal_tracker_does_not_guess_ambiguous_moved_identity() -> None:
 
 def test_temporal_tracker_reidentifies_moved_object_from_descriptor() -> None:
     tracker = TemporalSemanticMapTracker(association_distance_m=0.5, dormant_after_s=5.0)
-    original = tracker.update(
-        [observation("chair", 1.0, 1.0, "old", descriptor=(1.0, 0.0))]
-    )[0]
+    original = tracker.update([observation("chair", 1.0, 1.0, "old", descriptor=(1.0, 0.0))])[0]
 
-    moved = tracker.update(
-        [observation("chair", 3.0, 10.0, "new", descriptor=(0.99, 0.01))]
-    )[0]
+    moved = tracker.update([observation("chair", 3.0, 10.0, "new", descriptor=(0.99, 0.01))])[0]
 
     assert moved is original
     assert moved.state == TrackState.MOVED
@@ -182,13 +178,9 @@ def test_temporal_tracker_reidentifies_moved_object_from_descriptor() -> None:
 
 def test_temporal_tracker_does_not_relocate_active_descriptor_match() -> None:
     tracker = TemporalSemanticMapTracker(association_distance_m=0.5, dormant_after_s=5.0)
-    original = tracker.update(
-        [observation("chair", 1.0, 1.0, "old", descriptor=(1.0, 0.0))]
-    )[0]
+    original = tracker.update([observation("chair", 1.0, 1.0, "old", descriptor=(1.0, 0.0))])[0]
 
-    tracker.update(
-        [observation("chair", 3.0, 2.0, "new", descriptor=(0.99, 0.01))]
-    )
+    tracker.update([observation("chair", 3.0, 2.0, "new", descriptor=(0.99, 0.01))])
 
     assert len(tracker.objects) == 2
     assert original.state == TrackState.ACTIVE
@@ -219,9 +211,7 @@ def test_pose_graph_correction_merges_only_non_overlapping_duplicate_tracks() ->
     tracker.update([observation("chair", 0.0, 1.0, "old")])
     tracker.update([observation("chair", 2.0, 10.0, "new")])
     objects = list(tracker.objects)
-    objects[1].position_samples = [
-        PositionSample((2.0, 2.0, 0.5), 0, (0.2, 0.0, 0.5))
-    ]
+    objects[1].position_samples = [PositionSample((2.0, 2.0, 0.5), 0, (0.2, 0.0, 0.5))]
 
     tracker.apply_keyframe_poses(((0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0),))
 
@@ -238,9 +228,7 @@ def test_pose_graph_correction_keeps_simultaneous_nearby_objects_separate() -> N
         ]
     )
     objects = list(tracker.objects)
-    objects[1].position_samples = [
-        PositionSample((1.0, 2.0, 0.5), 0, (0.2, 0.0, 0.5))
-    ]
+    objects[1].position_samples = [PositionSample((1.0, 2.0, 0.5), 0, (0.2, 0.0, 0.5))]
 
     tracker.apply_keyframe_poses(((0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0),))
 

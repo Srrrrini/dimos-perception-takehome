@@ -41,6 +41,7 @@ def _resnet_temporal_backend(association_distance_m: float) -> TemporalSemanticM
         descriptor_similarity=0.90,
     )
 
+
 unitree_go2_semantic_map = (
     autoconnect(
         unitree_go2,

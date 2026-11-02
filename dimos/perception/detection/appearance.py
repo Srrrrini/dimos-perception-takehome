@@ -24,9 +24,7 @@ class AppearanceDescriptor(Protocol):
 
     def describe(self, detection: Detection2DBBox) -> tuple[float, ...]: ...
 
-    def describe_many(
-        self, detections: Sequence[Detection2DBBox]
-    ) -> list[tuple[float, ...]]: ...
+    def describe_many(self, detections: Sequence[Detection2DBBox]) -> list[tuple[float, ...]]: ...
 
 
 class NoAppearanceDescriptor:
@@ -35,9 +33,7 @@ class NoAppearanceDescriptor:
     def describe(self, detection: Detection2DBBox) -> tuple[float, ...]:
         return ()
 
-    def describe_many(
-        self, detections: Sequence[Detection2DBBox]
-    ) -> list[tuple[float, ...]]:
+    def describe_many(self, detections: Sequence[Detection2DBBox]) -> list[tuple[float, ...]]:
         return [() for _ in detections]
 
 
@@ -70,9 +66,7 @@ class HSVHistogramDescriptor:
             return ()
         return tuple(float(value) for value in descriptor / norm)
 
-    def describe_many(
-        self, detections: Sequence[Detection2DBBox]
-    ) -> list[tuple[float, ...]]:
+    def describe_many(self, detections: Sequence[Detection2DBBox]) -> list[tuple[float, ...]]:
         return [self.describe(detection) for detection in detections]
 
 
@@ -87,9 +81,7 @@ class DINOAppearanceDescriptor:
     def describe(self, detection: Detection2DBBox) -> tuple[float, ...]:
         return self.describe_many([detection])[0]
 
-    def describe_many(
-        self, detections: Sequence[Detection2DBBox]
-    ) -> list[tuple[float, ...]]:
+    def describe_many(self, detections: Sequence[Detection2DBBox]) -> list[tuple[float, ...]]:
         if not detections:
             return []
         embeddings = self.model.embed(
@@ -121,15 +113,11 @@ class ResNetAppearanceDescriptor:
     def describe(self, detection: Detection2DBBox) -> tuple[float, ...]:
         return self.describe_many([detection])[0]
 
-    def describe_many(
-        self, detections: Sequence[Detection2DBBox]
-    ) -> list[tuple[float, ...]]:
+    def describe_many(self, detections: Sequence[Detection2DBBox]) -> list[tuple[float, ...]]:
         if not detections:
             return []
         tensors = [
-            self.preprocess(
-                PILImage.fromarray(detection.cropped_image(padding=0).to_rgb().data)
-            )
+            self.preprocess(PILImage.fromarray(detection.cropped_image(padding=0).to_rgb().data))
             for detection in detections
         ]
         batch = self._torch.stack(tensors).to(self.device)

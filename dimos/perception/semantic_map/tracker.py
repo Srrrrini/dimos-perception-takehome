@@ -421,8 +421,7 @@ class TemporalSemanticMapTracker(GlobalAssignmentSemanticMapTracker):
             else 0.0
         )
         if observation.label.casefold() == obj.label.casefold() and (
-            (self.allow_source_track_relocation and same_source_identity)
-            or descriptor_identity
+            (self.allow_source_track_relocation and same_source_identity) or descriptor_identity
         ):
             distance = math.dist(obj.position, observation.position)
             if distance <= self.reidentification_distance_m:
