@@ -92,6 +92,10 @@ and the same 855-frame, 59.80-sensor-second replay.
 fusion` is the fraction of valid observations incorporated into an existing object. `Confirmed
 objects` means repeatedly observed tracks—not ground-truth accuracy or recall.
 
+The table shows how each detector, LiDAR lifting strategy, and tracking strategy performed
+end-to-end; the bold row is the selected default, while the other rows isolate the trade-offs that
+led to that choice.
+
 | Configuration | 2D detector | LiDAR point selection | Map association | Effective Hz | Inference mean / p95 | 3D survival | Confirmed objects | Accepted fusion |
 |---|---|---|---|---:|---:|---:|---:|---:|
 | Bounding-box baseline | YOLO11 bounding boxes | Points projected inside each 2D bounding-box frustum | Greedy nearest same-class object | 5.42 | 24.26 / 34.88 ms | 187/251 (74.50%) | 26 | 147/187 (78.61%) |
