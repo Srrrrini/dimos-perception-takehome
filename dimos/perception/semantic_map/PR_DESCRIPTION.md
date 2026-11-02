@@ -20,6 +20,27 @@ Detector, appearance encoder, 3D lifter, and map backend are independently facto
 standard boundaries remain `Detection2DArray` and `Detection3DArray`, making later model/fusion
 comparisons blueprint changes rather than rewrites.
 
+The blueprint consumes DimOS's existing `color_image`, accumulated world-frame `global_map`,
+camera calibration, and TF streams. It publishes the standard `Detection3DArray`, so the existing
+Rerun bridge and downstream modules work without a new message type. Query, navigation, and metrics
+are exposed through normal DimOS RPCs; navigation reuses the existing cost map and replanning A*
+module rather than introducing another planner.
+
+## Alternatives evaluated
+
+- **Detection:** YOLO11 segmentation, prompt-free YOLO-E, prompted Grounding DINO, and Grounding
+  DINO followed by SAM 2. YOLO-E is the default because it broadened observed vocabulary while
+  maintaining the replay's online pipeline rate. YOLO11 remains the faster conservative baseline;
+  DINO variants operated below 1 Hz.
+- **Camera-LiDAR fusion:** box frustum, mask frustum, and hybrid mask/box lifting. The selected
+  projection-based sequential fusion path transforms world LiDAR into the calibrated camera,
+  selects points inside the instance mask, and retries with the 2D box when fewer than 20 points
+  support the mask. Box lifting survives more often but admits background; mask lifting is tighter
+  but loses sparse observations; hybrid recovered 42% of fallback attempts.
+- **Association:** greedy nearest-neighbour, frame-global one-to-one assignment, and temporal
+  assignment with appearance and active/dormant/moved lifecycle. The temporal backend is selected
+  because it enforces same-frame exclusivity and supports conservative revisit and move handling.
+
 Pretrained weights may download automatically on first use, per the take-home clarification. The
 default YOLO-E and ResNet-18 paths already do this; the optional Grounding DINO path uses the
 Hugging Face cache, and YOLO-E falls back from DimOS Git-LFS data to Ultralytics' first-use download.
@@ -28,9 +49,9 @@ records the database hash, frame IDs, model/package versions, cold latency, and 
 
 ## Replay proof
 
-![Final replay](evidence/final_replay.png)
+![Final replay](https://github.com/Srrrrini/dimos-perception-takehome/blob/a4729a3fd7/dimos/perception/semantic_map/evidence/final_replay.png?raw=true)
 
-![Temporal blueprint](evidence/temporal_blueprint.svg)
+![Temporal blueprint](https://github.com/Srrrrini/dimos-perception-takehome/blob/a4729a3fd7/dimos/perception/semantic_map/evidence/temporal_blueprint.svg?raw=true)
 
 The screenshot shows the camera, odometry, telemetry, accumulated LiDAR map, and persistent labeled
 3D objects from the temporal pipeline using the YOLO11 baseline. The default was subsequently
@@ -73,8 +94,18 @@ accuracy evaluation. Accordingly, replay results remain evidence of runtime and 
 consistency; deterministic tracker tests cover known stationary, duplicate, revisit, and moved-object
 scenarios without presenting them as end-to-end detector accuracy.
 
-Detailed experiment history, including rejected trials, is in
-`dimos/perception/semantic_map/EXPERIMENTS.md`. Review-driven corrections and invalidated claims are
-recorded in `dimos/perception/semantic_map/REVIEW_RESPONSE.md`. A reviewer-oriented description of
-the complete architecture, alternatives, DimOS interfaces, evidence, and limitations is in
-`dimos/perception/semantic_map/DESIGN.md`.
+## Run and inspect
+
+```bash
+uv run dimos --replay --replay-db data/go2_short.db --viewer rerun \
+  run unitree-go2-semantic-map-temporal
+```
+
+From `dimos shell`:
+
+```python
+app.SemanticObjectMap.where_is_object("chair")
+app.SemanticObjectMap.navigate_to_object("chair")
+app.SemanticObjectMap.get_metrics()
+app.Detection3DModule.get_perception_metrics()
+```
