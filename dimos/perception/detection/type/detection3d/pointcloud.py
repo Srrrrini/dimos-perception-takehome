@@ -66,6 +66,7 @@ def lattice_quantum(points: np.ndarray) -> float | None:
 @dataclass
 class Detection3DPC(Detection3D):
     pointcloud: PointCloud2 = field(default_factory=PointCloud2)
+    appearance_descriptor: tuple[float, ...] = ()
 
     @functools.cached_property
     def center(self) -> Vector3:
@@ -91,6 +92,7 @@ class Detection3DPC(Detection3D):
             pointcloud=self.pointcloud + other.pointcloud,
             transform=later.transform,
             frame_id=self.frame_id,
+            appearance_descriptor=stronger.appearance_descriptor,
         )
 
     @functools.cached_property

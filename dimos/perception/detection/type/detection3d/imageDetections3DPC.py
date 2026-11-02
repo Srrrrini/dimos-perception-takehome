@@ -16,6 +16,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from dimos_lcm.vision_msgs import BoundingBox3D, ObjectHypothesis, ObjectHypothesisWithPose
+
+from dimos.msgs.geometry_msgs.Pose import Pose
+from dimos.msgs.geometry_msgs.Quaternion import Quaternion
+from dimos.msgs.geometry_msgs.Vector3 import Vector3
+from dimos.msgs.std_msgs.Header import Header
+from dimos.msgs.vision_msgs.Detection3D import Detection3D
+from dimos.msgs.vision_msgs.Detection3DArray import Detection3DArray
+from dimos.perception.detection.appearance import encode_detection_id
 from dimos.perception.detection.type.detection3d.pointcloud import Detection3DPC, lattice_quantum
 from dimos.perception.detection.type.imageDetections import ImageDetections
 
@@ -31,6 +40,48 @@ if TYPE_CHECKING:
 
 class ImageDetections3DPC(ImageDetections[Detection3DPC]):
     """Specialized class for 3D detections in an image."""
+
+    def to_ros_detection3d_array(self, frame_id: str | None = None) -> Detection3DArray:
+        """Convert pointcloud-backed detections to standard 3D boxes.
+
+        The semantic class name is kept in ``class_id`` because downstream
+        consumers use it as the human-readable label. The detector's numeric
+        class remains available on the in-process ``Detection3DPC`` object.
+        """
+        resolved_frame_id = frame_id
+        if resolved_frame_id is None:
+            resolved_frame_id = self.detections[0].frame_id if self.detections else ""
+
+        messages: list[Detection3D] = []
+        for detection in self.detections:
+            size = detection.get_bounding_box_dimensions()
+            msg = Detection3D()
+            msg.header = Header(detection.ts, detection.frame_id)
+            track_id = str(detection.track_id) if detection.track_id >= 0 else ""
+            msg.id = encode_detection_id(track_id, detection.appearance_descriptor)
+            msg.results = [
+                ObjectHypothesisWithPose(
+                    hypothesis=ObjectHypothesis(
+                        class_id=detection.name,
+                        score=detection.confidence,
+                    )
+                )
+            ]
+            msg.results_length = len(msg.results)
+            msg.bbox = BoundingBox3D(
+                center=Pose(
+                    position=detection.center,
+                    orientation=Quaternion(0.0, 0.0, 0.0, 1.0),
+                ),
+                size=Vector3(*size),
+            )
+            messages.append(msg)
+
+        return Detection3DArray(
+            detections_length=len(messages),
+            header=Header(self.image.ts, resolved_frame_id),
+            detections=messages,
+        )
 
     @classmethod
     def from_2d(

@@ -38,7 +38,8 @@ from dimos.utils.reactive import backpressure
 
 class Config(ModuleConfig):
     max_freq: float = 10
-    detector: Callable[[Any], Detector] | None = Yolo2DDetector
+    detector: Callable[..., Detector] | None = Yolo2DDetector
+    detector_kwargs: dict[str, Any] = {}
     publish_detection_images: bool = True
     camera_info: CameraInfo
     filter: Annotated[
@@ -65,7 +66,7 @@ class Detection2DModule(Module):
 
     def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         super().__init__(*args, **kwargs)
-        self.detector = self.config.detector()  # type: ignore[call-arg, misc]
+        self.detector = self.config.detector(**self.config.detector_kwargs)  # type: ignore[misc]
         self.vlm_detections_subject = Subject()  # type: ignore[var-annotated]
         self.previous_detection_count = 0
 
@@ -147,4 +148,9 @@ class Detection2DModule(Module):
 
     @rpc
     def stop(self) -> None:
-        return super().stop()
+        try:
+            detector_stop = getattr(self.detector, "stop", None)
+            if callable(detector_stop):
+                detector_stop()
+        finally:
+            super().stop()
