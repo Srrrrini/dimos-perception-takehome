@@ -69,7 +69,7 @@ Size: 120,732,545 bytes; `rerun rrd verify` passed
 Default YOLO-E full replay: 625 2D detections, 291 3D observations, 47 confirmed objects, and 5.44
 effective Hz over the same 855-frame recording.
 
-Additional default-pipeline details:
+### Additional default-pipeline details
 
 - 291/470 aligned detections survived 3D lifting (61.91%); 203/291 observations fused into existing
   objects (69.76%). All 291 received appearance descriptors.
@@ -83,15 +83,13 @@ Additional default-pipeline details:
   than measuring end-to-end detector recall.
 - 48 focused tests pass; lint and type checking pass.
 
+### Two-stage ablation study
+
 We used a two-stage ablation study. First, the five YOLO11 rows keep the detector fixed while
 changing one fusion/tracking stage at a time, so metric changes can be attributed to that stage.
 Second, the four temporal rows keep the preferred downstream pipeline fixed while comparing
 detector front ends. All runs used fresh processes and the same 855-frame, 59.80-sensor-second
 replay.
-
-`3D survival` is the fraction of aligned 2D detections producing a valid 3D observation. `Accepted
-fusion` is the fraction of valid observations incorporated into an existing object. `Confirmed
-objects` means repeatedly observed tracks—not ground-truth accuracy or recall.
 
 The table shows how each detector, LiDAR lifting strategy, and tracking strategy performed
 end-to-end; the bold row is the selected default, while the other rows isolate the trade-offs that
@@ -107,6 +105,22 @@ led to that choice.
 | **Default: temporal YOLO-E** | **YOLO-E open-vocabulary instance masks** | **Mask-first with bounding-box fallback** | **Global assignment + ResNet appearance + active/dormant/moved lifecycle** | **5.44** | **34.69 / 51.60 ms** | **291/470 (61.91%)** | **47** | **203/291 (69.76%)** |
 | Prompted Grounding DINO | Grounding DINO prompted boxes | Points projected inside each 2D bounding-box frustum | Global assignment + ResNet appearance + temporal lifecycle | 0.89 | 660.94 / 665.68 ms | 273/674 (40.50%) | 72 | 113/272 (41.54%) |
 | Prompted Grounding DINO + SAM | Grounding DINO boxes refined into SAM masks | Mask-first with bounding-box fallback | Global assignment + ResNet appearance + temporal lifecycle | 0.70 | 825.93 / 839.09 ms | 205/534 (38.39%) | 47 | 73/205 (35.61%) |
+
+### Terminology
+
+- **Bounding-box frustum:** calibrated LiDAR points whose image projections fall inside a 2D box.
+- **Instance-mask selection:** uses only points projecting inside the detected object silhouette.
+- **Mask-first with bounding-box fallback:** uses the mask when it has at least 20 projected points;
+  otherwise retries with the box.
+- **Greedy nearest same-class object:** processes observations sequentially and assigns each to the
+  nearest eligible existing object with the same label.
+- **Global one-to-one assignment:** jointly matches a frame so one observation maps to at most one
+  object and one object is updated at most once.
+- **Temporal lifecycle:** adds appearance evidence and active, dormant, and moved states for
+  conservative revisit and relocation handling.
+- **Effective Hz:** detector calls divided by replay sensor duration. **3D survival:** aligned 2D
+  detections producing valid 3D observations. **Accepted fusion:** valid observations incorporated
+  into existing objects. **Confirmed objects:** repeatedly observed tracks, not ground-truth recall.
 
 The replay has no ground-truth object annotations, so these are runtime, consistency, duplicate
 proxy, and safety measurements—not invented precision/recall claims. A moved-object recall claim
