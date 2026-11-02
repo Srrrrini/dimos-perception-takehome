@@ -83,10 +83,11 @@ Additional default-pipeline details:
   than measuring end-to-end detector recall.
 - 48 focused tests pass; lint and type checking pass.
 
-The first five rows below keep YOLO11 fixed while changing one fusion/tracking stage at a time, so
-metric changes can be attributed to that stage. The final four temporal rows compare detector
-front ends while keeping the preferred downstream pipeline fixed. All runs used fresh processes
-and the same 855-frame, 59.80-sensor-second replay.
+We used a two-stage ablation study. First, the five YOLO11 rows keep the detector fixed while
+changing one fusion/tracking stage at a time, so metric changes can be attributed to that stage.
+Second, the four temporal rows keep the preferred downstream pipeline fixed while comparing
+detector front ends. All runs used fresh processes and the same 855-frame, 59.80-sensor-second
+replay.
 
 `3D survival` is the fraction of aligned 2D detections producing a valid 3D observation. `Accepted
 fusion` is the fraction of valid observations incorporated into an existing object. `Confirmed
