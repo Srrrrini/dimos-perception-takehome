@@ -109,5 +109,6 @@ interoperability compromise, not the preferred production schema.
 - [Generated temporal blueprint graph](evidence/temporal_blueprint.svg)
 - [Replay artifact details and regeneration command](evidence/README.md)
 - [Ready-to-paste PR description](PR_DESCRIPTION.md)
+- [Detailed design and evaluation note](DESIGN.md)
 - [Experiment and metrics ledger](EXPERIMENTS.md)
 - [Review response and decision record](REVIEW_RESPONSE.md)

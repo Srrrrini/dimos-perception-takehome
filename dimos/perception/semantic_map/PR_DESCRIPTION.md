@@ -75,4 +75,6 @@ scenarios without presenting them as end-to-end detector accuracy.
 
 Detailed experiment history, including rejected trials, is in
 `dimos/perception/semantic_map/EXPERIMENTS.md`. Review-driven corrections and invalidated claims are
-recorded in `dimos/perception/semantic_map/REVIEW_RESPONSE.md`.
+recorded in `dimos/perception/semantic_map/REVIEW_RESPONSE.md`. A reviewer-oriented description of
+the complete architecture, alternatives, DimOS interfaces, evidence, and limitations is in
+`dimos/perception/semantic_map/DESIGN.md`.
