@@ -126,3 +126,25 @@ app.SemanticObjectMap.navigate_to_object("chair")
 app.SemanticObjectMap.get_metrics()
 app.Detection3DModule.get_perception_metrics()
 ```
+
+## Future work
+
+- **Ground-truth evaluation:** annotate a small development set and a held-out test sequence, then
+  report detection precision/recall, 3D center error and IoU, duplicate/merge errors, ID switches,
+  fragmentation, IDF1/HOTA-style association, and `where_is_object()` success and position error.
+- **Controlled simulation:** evaluate stationary revisits, identical nearby objects, occlusion,
+  object movement, and navigation success across multiple scenes and random seeds with confidence
+  intervals.
+- **Fusion comparisons:** compare the current calibration-based mask-frustum method against
+  single-scan lifting, PointPainting-style semantic points, learned frustum box estimation, and
+  BEV feature fusion using identical inputs and ground truth. Measure accuracy, latency, memory,
+  and sensitivity to calibration and timestamp error.
+- **Vocabulary quality:** normalize YOLO-E's broad labels and evaluate prompted/open-vocabulary
+  detectors on an annotated indoor-object vocabulary rather than treating detection volume as
+  recall.
+- **Long-term mapping:** add timestamp-matched local observations and stable keyframe IDs before
+  enabling pose-graph object correction or semantic loop closure. Move appearance descriptors from
+  the opaque detection ID into an explicit interoperable schema.
+- **Deployment evaluation:** benchmark CPU and edge-GPU operation, dropped-frame age, p95
+  sensor-to-map latency, GPU memory, and end-to-end object-navigation success. Select the final
+  configuration from the held-out accuracy/runtime Pareto frontier.
