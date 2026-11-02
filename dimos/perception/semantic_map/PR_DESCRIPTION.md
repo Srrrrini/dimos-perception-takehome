@@ -66,7 +66,24 @@ Size: 120,732,545 bytes; `rerun rrd verify` passed
 
 ## Results
 
-Final full-replay YOLO-E measurement (E19):
+All eight configurations were run in fresh processes over the same 855-frame, 59.80-sensor-second
+replay. `3D survival` is the percentage of timestamp-aligned 2D detections that produced a valid 3D
+observation. `Accepted fusion` is the percentage of valid 3D observations incorporated into an
+existing map object rather than creating a new track. `Confirmed objects` means tracks observed in
+enough independent frames; without annotations, it is not an accuracy or recall measurement.
+
+| Configuration | 2D detector | LiDAR point selection | Map association | Effective Hz | Inference mean / p95 | 3D survival | Confirmed objects | Accepted fusion |
+|---|---|---|---|---:|---:|---:|---:|---:|
+| Bounding-box baseline | YOLO11 bounding boxes | Points projected inside each 2D bounding-box frustum | Greedy nearest same-class object | 5.42 | 24.26 / 34.88 ms | 187/251 (74.50%) | 26 | 147/187 (78.61%) |
+| Instance-mask only | YOLO11 instance masks | Points projected inside the instance mask; no fallback | Greedy nearest same-class object | 5.50 | 26.58 / 39.74 ms | 135/325 (41.54%) | 22 | 96/134 (71.64%) |
+| Mask-first with bounding-box fallback | YOLO11 instance masks | Use mask when supported; otherwise retry with the 2D box | Greedy nearest same-class object | 5.44 | 27.99 / 44.65 ms | 209/301 (69.44%) | 34 | 161/207 (77.78%) |
+| Frame-global assignment | YOLO11 instance masks | Mask-first with bounding-box fallback | Global one-to-one same-class assignment | 5.41 | 25.67 / 39.08 ms | 196/289 (67.82%) | 30 | 149/194 (76.80%) |
+| Temporal YOLO11 baseline | YOLO11 instance masks | Mask-first with bounding-box fallback | Global assignment + ResNet appearance + active/dormant/moved lifecycle | 5.43 | 28.28 / 42.39 ms | 209/326 (64.11%) | 33 | 157/206 (76.21%) |
+| **Default: temporal YOLO-E** | **YOLO-E open-vocabulary instance masks** | **Mask-first with bounding-box fallback** | **Global assignment + ResNet appearance + active/dormant/moved lifecycle** | **5.44** | **34.69 / 51.60 ms** | **291/470 (61.91%)** | **47** | **203/291 (69.76%)** |
+| Prompted Grounding DINO | Grounding DINO prompted boxes | Points projected inside each 2D bounding-box frustum | Global assignment + ResNet appearance + temporal lifecycle | 0.89 | 660.94 / 665.68 ms | 273/674 (40.50%) | 72 | 113/272 (41.54%) |
+| Prompted Grounding DINO + SAM | Grounding DINO boxes refined into SAM masks | Mask-first with bounding-box fallback | Global assignment + ResNet appearance + temporal lifecycle | 0.70 | 825.93 / 839.09 ms | 205/534 (38.39%) | 47 | 73/205 (35.61%) |
+
+The default YOLO-E result in detail:
 
 - 291/291 surviving 3D detections received appearance descriptors.
 - 203/291 valid observations were genuinely fused into existing objects: 69.76% strict accepted-
