@@ -66,11 +66,31 @@ Size: 120,732,545 bytes; `rerun rrd verify` passed
 
 ## Results
 
-All eight configurations were run in fresh processes over the same 855-frame, 59.80-sensor-second
-replay. `3D survival` is the percentage of timestamp-aligned 2D detections that produced a valid 3D
-observation. `Accepted fusion` is the percentage of valid 3D observations incorporated into an
-existing map object rather than creating a new track. `Confirmed objects` means tracks observed in
-enough independent frames; without annotations, it is not an accuracy or recall measurement.
+Default YOLO-E full replay: 625 2D detections, 291 3D observations, 47 confirmed objects, and 5.44
+effective Hz over the same 855-frame recording.
+
+Additional default-pipeline details:
+
+- 291/470 aligned detections survived 3D lifting (61.91%); 203/291 observations fused into existing
+  objects (69.76%). All 291 received appearance descriptors.
+- Latency: detector 34.69/51.60 ms, appearance 5.10/9.96 ms, and association 0.90/1.89 ms
+  mean/p95.
+- No rejected frames or detector/lifter/descriptor failures. The static replay produced no move
+  events; the mapper reported two geometric loop closures, but no semantic correction is claimed.
+- A detector-only GPU sample measured YOLO-E at 28.39 ms mean / 36.41 ms p95 (35.23 Hz).
+- Controlled tracker simulation: 100% track recall, zero duplicates, ID switches, or false merges,
+  and 1/1 moved-object re-identification across five known objects. This isolates tracking rather
+  than measuring end-to-end detector recall.
+- 48 focused tests pass; lint and type checking pass.
+
+The first five rows below keep YOLO11 fixed while changing one fusion/tracking stage at a time, so
+metric changes can be attributed to that stage. The final four temporal rows compare detector
+front ends while keeping the preferred downstream pipeline fixed. All runs used fresh processes
+and the same 855-frame, 59.80-sensor-second replay.
+
+`3D survival` is the fraction of aligned 2D detections producing a valid 3D observation. `Accepted
+fusion` is the fraction of valid observations incorporated into an existing object. `Confirmed
+objects` means repeatedly observed tracks—not ground-truth accuracy or recall.
 
 | Configuration | 2D detector | LiDAR point selection | Map association | Effective Hz | Inference mean / p95 | 3D survival | Confirmed objects | Accepted fusion |
 |---|---|---|---|---:|---:|---:|---:|---:|
@@ -82,25 +102,6 @@ enough independent frames; without annotations, it is not an accuracy or recall 
 | **Default: temporal YOLO-E** | **YOLO-E open-vocabulary instance masks** | **Mask-first with bounding-box fallback** | **Global assignment + ResNet appearance + active/dormant/moved lifecycle** | **5.44** | **34.69 / 51.60 ms** | **291/470 (61.91%)** | **47** | **203/291 (69.76%)** |
 | Prompted Grounding DINO | Grounding DINO prompted boxes | Points projected inside each 2D bounding-box frustum | Global assignment + ResNet appearance + temporal lifecycle | 0.89 | 660.94 / 665.68 ms | 273/674 (40.50%) | 72 | 113/272 (41.54%) |
 | Prompted Grounding DINO + SAM | Grounding DINO boxes refined into SAM masks | Mask-first with bounding-box fallback | Global assignment + ResNet appearance + temporal lifecycle | 0.70 | 825.93 / 839.09 ms | 205/534 (38.39%) | 47 | 73/205 (35.61%) |
-
-The default YOLO-E result in detail:
-
-- 291/291 surviving 3D detections received appearance descriptors.
-- 203/291 valid observations were genuinely fused into existing objects: 69.76% strict accepted-
-  fusion rate. This excludes new tracks and any pending/unaccepted relocation.
-- 0.90 ms mean / 1.89 ms p95 association latency.
-- 5.10 ms mean / 9.96 ms p95 appearance extraction per detection.
-- 568 detector calls at 34.69 ms mean / 51.60 ms p95 inference latency; 291/470 aligned 2D
-  detections survived 3D lifting (61.91%).
-- Zero reported move events on a replay believed to be static; this is not ground-truth proof.
-- Two geometric loop closures were reported by the mapper; no semantic correction claim is made.
-- Zero rejected frames or detector/lifter/descriptor failures in the final headless replay.
-- The fixed GPU sample ran YOLO-E at 28.39 ms mean / 36.41 ms p95 warm detector latency (35.23 Hz).
-- Controlled tracker simulation measured 100% track recall, 0 duplicate tracks, 0 identity
-  switches, 0 false merges, and 1/1 moved-object re-identification across five known objects. This
-  is component-level association evidence, not end-to-end detector recall.
-- 48 focused semantic-map, detector-adapter, blueprint, appearance, and lifting tests pass; lint and
-  type checking pass.
 
 The replay has no ground-truth object annotations, so these are runtime, consistency, duplicate
 proxy, and safety measurements—not invented precision/recall claims. A moved-object recall claim
