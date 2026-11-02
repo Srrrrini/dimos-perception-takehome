@@ -54,14 +54,14 @@ records the database hash, frame IDs, model/package versions, cold latency, and 
 ![Temporal blueprint](https://github.com/Srrrrini/dimos-perception-takehome/blob/a4729a3fd7/dimos/perception/semantic_map/evidence/temporal_blueprint.svg?raw=true)
 
 The screenshot shows the camera, odometry, telemetry, accumulated LiDAR map, and persistent labeled
-3D objects from the temporal pipeline using the YOLO11 baseline. The default was subsequently
-promoted to YOLO-E and run headlessly over the same complete replay. The visual artifact was
-generated and verified before that detector-only default change:
+3D objects from the temporal pipeline using the YOLO11 baseline. The final YOLO-E default was also
+recorded over the complete replay and is available through Git LFS at
+[`evidence/yoloe_default_replay.rrd`](https://github.com/Srrrrini/dimos-perception-takehome/blob/srinivas/feat/semantic-object-map/dimos/perception/semantic_map/evidence/yoloe_default_replay.rrd).
 
 ```text
-recordings/20261101-125124-ea4c-unitree-go2-semantic-map-temporal/rerun.rrd
-SHA-256: 8e70e16ac003a0dbbab34154c204e7002e061505fd90524d8ef966751d5a7e9f
-Size: 112 MiB; `rerun rrd verify` passed
+dimos/perception/semantic_map/evidence/yoloe_default_replay.rrd
+SHA-256: b96b00c157ffbdb0dd1deccf43f5f4afced0ea78e9629a6390eabd44e6422f4c
+Size: 120,732,545 bytes; `rerun rrd verify` passed
 ```
 
 ## Results

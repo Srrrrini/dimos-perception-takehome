@@ -18,19 +18,23 @@ verifies the blueprint's module, channel, and RPC wiring using the same registry
 for all eight registered semantic-map pipeline variants. The protocol and interpretation are
 documented under E19 in [`../EXPERIMENTS.md`](../EXPERIMENTS.md).
 
-The full recording is intentionally not committed because it is 112 MiB. It was generated at:
+The final YOLO-E default recording is committed through Git LFS at:
 
 ```text
-recordings/20261101-125124-ea4c-unitree-go2-semantic-map-temporal/rerun.rrd
+dimos/perception/semantic_map/evidence/yoloe_default_replay.rrd
 ```
 
 Integrity:
 
 ```text
-SHA-256: 8e70e16ac003a0dbbab34154c204e7002e061505fd90524d8ef966751d5a7e9f
+SHA-256: b96b00c157ffbdb0dd1deccf43f5f4afced0ea78e9629a6390eabd44e6422f4c
 Rerun verification: 1 file verified without error
-Size: 112 MiB
+Size: 120,732,545 bytes
 ```
+
+Reviewers who clone with Git LFS receive the recording automatically. From an existing clone, run
+`git lfs pull`, then open the file with Rerun. Reviewers can also use the recording link in the PR
+while signed into an account with access to the private repository.
 
 Regenerate it from the repository root with:
 

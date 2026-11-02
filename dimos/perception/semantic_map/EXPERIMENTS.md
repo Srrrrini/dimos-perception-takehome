@@ -518,3 +518,16 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
   essentially the same effective pipeline rate (5.44 versus 5.43 Hz). It trades higher inference
   latency (34.69 versus 28.28 ms) and lower accepted-fusion rate (69.76% versus 76.21%) for broader
   coverage. These counts do not prove accuracy; ambiguous labels remain a documented limitation.
+
+## E21 — final YOLO-E Rerun artifact
+
+- Date: 2026-11-01
+- Command: `RERUNBRIDGEMODULE__RERUN_OPEN=none RERUNBRIDGEMODULE__RERUN_SAVE=1 dimos
+  --replay --replay-db data/go2_short.db --viewer rerun run
+  unitree-go2-semantic-map-temporal`.
+- Artifact: `evidence/yoloe_default_replay.rrd`, stored through Git LFS; 120,732,545 bytes; SHA-256
+  `b96b00c157ffbdb0dd1deccf43f5f4afced0ea78e9629a6390eabd44e6422f4c`; `rerun rrd verify`
+  passed.
+- Replay: 855 inputs, 571 inference calls, 652 2D detections, 312/505 aligned detections lifted to
+  3D (61.78%), 90 candidates, 47 confirmed objects, and 71.06% accepted fusion. Inference was
+  32.14 ms mean / 44.40 ms p95. Counts vary slightly with asynchronous replay scheduling.
