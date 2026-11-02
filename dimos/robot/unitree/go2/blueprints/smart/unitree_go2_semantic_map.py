@@ -97,6 +97,21 @@ unitree_go2_semantic_map_temporal = (
         unitree_go2,
         Detection3DModule.blueprint(
             camera_info=GO2Connection.camera_info_static,
+            detector=Yoloe2DDetector,
+            lifter=HybridMaskBoxLifter,
+            appearance_descriptor=ResNetAppearanceDescriptor,
+        ),
+        SemanticObjectMap.blueprint(backend=_resnet_temporal_backend),
+    )
+    .remappings([(Detection3DModule, "pointcloud", "global_map")])
+    .global_config(n_workers=12, robot_model="unitree_go2")
+)
+
+unitree_go2_semantic_map_temporal_yolo11 = (
+    autoconnect(
+        unitree_go2,
+        Detection3DModule.blueprint(
+            camera_info=GO2Connection.camera_info_static,
             detector=Yolo11Seg2DDetector,
             lifter=HybridMaskBoxLifter,
             appearance_descriptor=ResNetAppearanceDescriptor,
@@ -107,20 +122,8 @@ unitree_go2_semantic_map_temporal = (
     .global_config(n_workers=12, robot_model="unitree_go2")
 )
 
-unitree_go2_semantic_map_temporal_yoloe = (
-    autoconnect(
-        unitree_go2,
-        Detection3DModule.blueprint(
-            camera_info=GO2Connection.camera_info_static,
-            detector=Yoloe2DDetector,
-            lifter=HybridMaskBoxLifter,
-            appearance_descriptor=ResNetAppearanceDescriptor,
-        ),
-        SemanticObjectMap.blueprint(backend=_resnet_temporal_backend),
-    )
-    .remappings([(Detection3DModule, "pointcloud", "global_map")])
-    .global_config(n_workers=12, robot_model="unitree_go2")
-)
+# Backward-compatible explicit name for the detector now used by the default blueprint.
+unitree_go2_semantic_map_temporal_yoloe = unitree_go2_semantic_map_temporal
 
 unitree_go2_semantic_map_temporal_grounding_dino = (
     autoconnect(

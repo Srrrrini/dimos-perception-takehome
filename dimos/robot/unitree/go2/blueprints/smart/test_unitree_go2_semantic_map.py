@@ -9,12 +9,15 @@ from dimos.perception.detection.detectors.grounding_dino import (
     GroundingDino2DDetector,
     GroundingDinoSam2DDetector,
 )
+from dimos.perception.detection.detectors.yolo import Yolo11Seg2DDetector
 from dimos.perception.detection.detectors.yoloe import Yoloe2DDetector
 from dimos.perception.detection.module3D import Detection3DModule
 from dimos.perception.semantic_map.module import SemanticObjectMap
 from dimos.robot.unitree.go2.blueprints.smart.unitree_go2_semantic_map import (
+    unitree_go2_semantic_map_temporal,
     unitree_go2_semantic_map_temporal_grounding_dino,
     unitree_go2_semantic_map_temporal_grounding_dino_sam,
+    unitree_go2_semantic_map_temporal_yolo11,
     unitree_go2_semantic_map_temporal_yoloe,
 )
 
@@ -22,7 +25,9 @@ from dimos.robot.unitree.go2.blueprints.smart.unitree_go2_semantic_map import (
 @pytest.mark.parametrize(
     ("blueprint", "detector"),
     [
+        (unitree_go2_semantic_map_temporal, Yoloe2DDetector),
         (unitree_go2_semantic_map_temporal_yoloe, Yoloe2DDetector),
+        (unitree_go2_semantic_map_temporal_yolo11, Yolo11Seg2DDetector),
         (unitree_go2_semantic_map_temporal_grounding_dino, GroundingDino2DDetector),
         (unitree_go2_semantic_map_temporal_grounding_dino_sam, GroundingDinoSam2DDetector),
     ],

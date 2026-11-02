@@ -501,8 +501,20 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
   candidates / 47 confirmed. Inference was 825.93 ms mean / 839.09 ms p95; accepted fusion was
   35.61%; pairs were 1/7/9. SAM masks reduced close duplicate proxies relative to DINO boxes, but
   sparse masks and latency reduced usable observations.
-- Selection: retain the YOLO11/hybrid/ResNet/temporal pipeline as the submission default because it
-  is the strongest demonstrated balance of online speed, mask geometry with robust fallback, and
-  temporal capability. YOLO-E is the preferred open-vocabulary alternative. The unannotated replay
+- Selection (superseded by the user-requested E20 default): YOLO11 was initially retained as the
+  conservative submission baseline, while YOLO-E was the preferred open-vocabulary alternative.
+  The unannotated replay
   cannot establish precision, recall, IDF1/HOTA, or 3D localization accuracy; confirmed-object
   count, association rate, and nearby-pair count are engineering diagnostics, not ground truth.
+
+## E20 — promote YOLO-E to the submission default
+
+- Date: 2026-11-01
+- Decision: `unitree-go2-semantic-map-temporal` now selects YOLO-E. The measured E19 YOLO-E row is
+  therefore the default's full-replay result. `unitree-go2-semantic-map-temporal-yolo11` preserves
+  the faster fixed-vocabulary baseline, and the older `...-temporal-yoloe` name remains an alias.
+- Rationale: compared with YOLO11 on the same supplied replay, YOLO-E produced 625 versus 417 2D
+  detections, 291 versus 209 3D observations, and 47 versus 33 confirmed tracks while maintaining
+  essentially the same effective pipeline rate (5.44 versus 5.43 Hz). It trades higher inference
+  latency (34.69 versus 28.28 ms) and lower accepted-fusion rate (69.76% versus 76.21%) for broader
+  coverage. These counts do not prove accuracy; ambiguous labels remain a documented limitation.

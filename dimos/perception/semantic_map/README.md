@@ -69,16 +69,18 @@ fusion is selected through the `Detection3DLifter` factory, and association/map 
 the `SemanticMapBackend` factory. Their standard message boundary remains `Detection3DArray`, so
 variants can be benchmarked without changing the blueprint's downstream contract.
 
-Optional blueprints swap in YOLO-E, prompted Grounding DINO, or Grounding DINO followed by SAM 2
-instance masks. Grounding DINO prompt lists are blueprint configuration, not hard-coded runtime
-policy. The default remains YOLO11n-seg because it provides masks at real-time replay throughput.
+The default uses prompt-free YOLO-E because it preserves instance masks and expanded the useful
+vocabulary while maintaining the replay's online processing rate. Optional blueprints select the
+faster fixed-vocabulary YOLO11 baseline, prompted Grounding DINO, or Grounding DINO followed by
+SAM 2 instance masks. Grounding DINO prompt lists are blueprint configuration, not hard-coded
+runtime policy.
 
-The semantic vocabulary and false positives inherit the detector's limitations. The default COCO
-model can, for example, mislabel large indoor fixtures. LiDAR is sparse on glass, thin furniture,
+The semantic vocabulary and false positives inherit the detector's limitations. Prompt-free
+YOLO-E can emit broad or ambiguous scene labels. LiDAR is sparse on glass, thin furniture,
 and object tops, so box dimensions are visualization aids rather than collision geometry. Dynamic
 objects need evidence beyond a single tracker-ID jump before their persistent identity is moved.
 
-The `unitree-go2-semantic-map-temporal` blueprint combines YOLO11 segmentation, hybrid mask/box
+The `unitree-go2-semantic-map-temporal` blueprint combines YOLO-E segmentation, hybrid mask/box
 lifting, batched ResNet-18 appearance embeddings, global one-to-one assignment, and explicit
 active/dormant/moved lifecycle. Static objects seen after a long gap retain their identity by class
 and world position. A moved object retains its identity only when a dormant same-class candidate

@@ -3,7 +3,7 @@ box_greedy,YOLO11n-detect,ProjectedPointCloudLifter,None,SemanticMapTracker,5.42
 mask_greedy,YOLO11n-seg,ProjectedPointCloudLifter,None,SemanticMapTracker,5.49703,26.57661,39.73880,422,325,135,41.53846,38,22,96,71.64179,0.07403,0,1,1
 hybrid_greedy,YOLO11n-seg,HybridMaskBoxLifter,None,SemanticMapTracker,5.44342,27.98744,44.64882,405,301,209,69.43522,46,34,161,77.77778,0.08421,1,4,11
 hybrid_assignment,YOLO11n-seg,HybridMaskBoxLifter,None,GlobalAssignmentSemanticMapTracker,5.41142,25.66687,39.07771,399,289,196,67.82007,45,30,149,76.80412,0.64245,2,3,10
-temporal_default,YOLO11n-seg,HybridMaskBoxLifter,ResNetAppearanceDescriptor,TemporalSemanticMapTracker,5.43485,28.27898,42.38651,417,326,209,64.11043,49,33,157,76.21359,0.80924,2,6,14
-temporal_yoloe,YOLO-E-11s-seg-pf,HybridMaskBoxLifter,ResNetAppearanceDescriptor,TemporalSemanticMapTracker,5.44122,34.69323,51.59877,625,470,291,61.91489,88,47,203,69.75945,0.89618,1,2,5
+temporal_yolo11,YOLO11n-seg,HybridMaskBoxLifter,ResNetAppearanceDescriptor,TemporalSemanticMapTracker,5.43485,28.27898,42.38651,417,326,209,64.11043,49,33,157,76.21359,0.80924,2,6,14
+temporal_default_yoloe,YOLO-E-11s-seg-pf,HybridMaskBoxLifter,ResNetAppearanceDescriptor,TemporalSemanticMapTracker,5.44122,34.69323,51.59877,625,470,291,61.91489,88,47,203,69.75945,0.89618,1,2,5
 temporal_dino,Grounding-DINO-Tiny,HybridMaskBoxLifter,ResNetAppearanceDescriptor,TemporalSemanticMapTracker,0.88561,660.94046,665.67710,871,674,273,40.50445,159,72,113,41.54412,2.28418,5,16,21
 temporal_dino_sam,Grounding-DINO-Tiny+SAM-2.1-Tiny,HybridMaskBoxLifter,ResNetAppearanceDescriptor,TemporalSemanticMapTracker,0.69880,825.93423,839.09274,706,534,205,38.38951,132,47,73,35.60976,2.38418,1,7,9

@@ -4,9 +4,11 @@
 
 ![Temporal blueprint graph](temporal_blueprint.svg)
 
-The screenshot shows the final `unitree-go2-semantic-map-temporal` blueprint replaying the Go2
-recording. The left side contains the camera stream, odometry, and mapper/pose-graph timing; the
-right side shows the accumulated LiDAR map and persistent labeled 3D semantic objects.
+The screenshot shows the temporal pipeline replaying the Go2 recording with its YOLO11 baseline
+detector. The left side contains the camera stream, odometry, and mapper/pose-graph timing; the
+right side shows the accumulated LiDAR map and persistent labeled 3D semantic objects. The default
+was subsequently promoted to YOLO-E in E20; its complete headless replay metrics are recorded in
+the matrix below.
 
 The graph is generated directly by `dimos graph unitree-go2-semantic-map-temporal --rpc`. It
 verifies the blueprint's module, channel, and RPC wiring using the same registry entry used by
