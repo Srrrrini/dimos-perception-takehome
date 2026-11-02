@@ -461,3 +461,48 @@ are duplicate diagnostics, not accuracy measurements; accuracy requires annotati
 - Interpretation: YOLO11 is the fastest fixed-vocabulary baseline. YOLO-E is 3.83x slower than
   YOLO11 but remains comfortably online and broadens labels. DINO is 100.99x slower than YOLO11;
   adding SAM costs another 30.4% over DINO. Detection totals measure output volume, not accuracy.
+
+## E19 — full supplied-replay pipeline matrix
+
+- Date: 2026-11-01
+- Protocol: eight fresh processes at the same revision, each replaying all 855 inputs from
+  `data/go2_short.db` (59.80 sensor seconds) with no viewer. Every process received the same 110 s
+  wall-time budget and graceful interrupt. Raw logs are represented by the normalized rows in
+  `evidence/e19_pipeline_matrix.csv`.
+- Box/greedy baseline (`unitree-go2-semantic-map`): YOLO boxes, box LiDAR lifting, no appearance,
+  greedy tracker. It produced 325 2D detections, lifted 187/251 aligned detections (74.50%), ran
+  inference at 24.26 ms mean / 34.88 ms p95, and created 40 candidates / 26 confirmed objects.
+  Its accepted-fusion rate was 78.61%, with nearby same-label pairs 1/6/10.
+- Mask/greedy (`...-seg`): YOLO instance masks, mask-only LiDAR lifting, no appearance, greedy
+  tracker. It produced 422 detections but lifted only 135/325 (41.54%), confirming 22 objects. The
+  mask-only path reduced nearby-pair counts to 0/1/1 but discarded sparse-mask observations.
+- Hybrid/greedy (`...-hybrid`): YOLO masks, mask-first lifting with box fallback, no appearance,
+  greedy tracker. It lifted 209/301 (69.44%); fallback recovered 63/150 attempts (42.00%). It
+  created 46 candidates / 34 confirmed objects, with 77.78% accepted fusion and pairs 1/4/11.
+- Hybrid/global assignment (`...-assignment`): the same front end with frame-global one-to-one
+  matching. It lifted 196/289 (67.82%), created 45 candidates / 30 confirmed objects, accepted
+  76.80% of observations, and had pairs 2/3/10. Association cost was 0.64 ms mean.
+- Preferred temporal baseline (`...-temporal`): YOLO masks, hybrid lifting, ResNet-18 appearance,
+  and global temporal tracking. It lifted 209/326 (64.11%), created 49 candidates / 33 confirmed,
+  accepted 76.21% of observations, and had pairs 2/6/14. Inference was 28.28 ms mean / 42.39 ms
+  p95, descriptor extraction 4.48 ms mean / 8.69 ms p95, and association 0.81 ms mean. Unlike the
+  simpler trackers, it exposes active/dormant/moved lifecycle and conservative re-identification.
+- YOLO-E temporal (`...-temporal-yoloe`): prompt-free open-vocabulary masks with the preferred
+  downstream stack. It produced 625 2D detections, lifted 291/470 (61.91%), and created 88
+  candidates / 47 confirmed. Inference was 34.69 ms mean / 51.60 ms p95; accepted fusion was
+  69.76%; pairs were 1/2/5. Broad but noisy labels included scene/category errors, so the larger
+  map is not evidence of higher accuracy.
+- Grounding DINO temporal (`...-temporal-grounding-dino`): prompted open-vocabulary boxes with
+  hybrid lifting, ResNet-18, and temporal tracking. At 0.89 effective Hz it produced 871 detections,
+  lifted 273/674 (40.50%), and created 159 candidates / 72 confirmed. Inference was 660.94 ms mean
+  / 665.68 ms p95; accepted fusion was 41.54%; pairs were 5/16/21.
+- Grounding DINO + SAM temporal (`...-temporal-grounding-dino-sam`): DINO boxes refined to SAM
+  masks. At 0.70 effective Hz it produced 706 detections, lifted 205/534 (38.39%), and created 132
+  candidates / 47 confirmed. Inference was 825.93 ms mean / 839.09 ms p95; accepted fusion was
+  35.61%; pairs were 1/7/9. SAM masks reduced close duplicate proxies relative to DINO boxes, but
+  sparse masks and latency reduced usable observations.
+- Selection: retain the YOLO11/hybrid/ResNet/temporal pipeline as the submission default because it
+  is the strongest demonstrated balance of online speed, mask geometry with robust fallback, and
+  temporal capability. YOLO-E is the preferred open-vocabulary alternative. The unannotated replay
+  cannot establish precision, recall, IDF1/HOTA, or 3D localization accuracy; confirmed-object
+  count, association rate, and nearby-pair count are engineering diagnostics, not ground truth.

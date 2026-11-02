@@ -12,6 +12,10 @@ The graph is generated directly by `dimos graph unitree-go2-semantic-map-tempora
 verifies the blueprint's module, channel, and RPC wiring using the same registry entry used by
 `dimos run`.
 
+[`e19_pipeline_matrix.csv`](e19_pipeline_matrix.csv) contains the normalized full-replay metrics
+for all eight registered semantic-map pipeline variants. The protocol and interpretation are
+documented under E19 in [`../EXPERIMENTS.md`](../EXPERIMENTS.md).
+
 The full recording is intentionally not committed because it is 112 MiB. It was generated at:
 
 ```text
