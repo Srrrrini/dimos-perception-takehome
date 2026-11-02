@@ -12,9 +12,6 @@ swappable modules joined by existing message contracts rather than a monolithic 
 - The temporal backend tracks active/dormant/moved lifecycle, uses conservative ResNet-18
   appearance ReID for revisits, and exposes `where_is_object()`, `navigate_to_object()`, and
   structured metrics. Navigation publishes a 1 m standoff goal to the existing Go2 A* planner.
-- Pose-graph reprojection is deliberately disabled: this replay does not expose a stable,
-  timestamp-matched source keyframe and detections use an accumulated global cloud. Enabling the
-  earlier newest-keyframe approximation would make an unsupported geometry claim.
 
 Detector, appearance encoder, 3D lifter, and map backend are independently factory-selected. Their
 standard boundaries remain `Detection2DArray` and `Detection3DArray`, making later model/fusion
@@ -49,13 +46,12 @@ records the database hash, frame IDs, model/package versions, cold latency, and 
 
 ## Replay proof
 
-![Final replay](https://github.com/Srrrrini/dimos-perception-takehome/blob/a4729a3fd7/dimos/perception/semantic_map/evidence/final_replay.png?raw=true)
+![Final YOLO-E replay](https://github.com/Srrrrini/dimos-perception-takehome/blob/srinivas/feat/semantic-object-map/dimos/perception/semantic_map/evidence/final_replay.png?raw=true)
 
 ![Temporal blueprint](https://github.com/Srrrrini/dimos-perception-takehome/blob/a4729a3fd7/dimos/perception/semantic_map/evidence/temporal_blueprint.svg?raw=true)
 
 The screenshot shows the camera, odometry, telemetry, accumulated LiDAR map, and persistent labeled
-3D objects from the temporal pipeline using the YOLO11 baseline. The final YOLO-E default was also
-recorded over the complete replay and is available through Git LFS at
+3D objects from the final YOLO-E temporal pipeline. The complete replay is available through Git LFS at
 [`evidence/yoloe_default_replay.rrd`](https://github.com/Srrrrini/dimos-perception-takehome/blob/srinivas/feat/semantic-object-map/dimos/perception/semantic_map/evidence/yoloe_default_replay.rrd).
 
 ```text
@@ -82,6 +78,12 @@ effective Hz over the same 855-frame recording.
   and 1/1 moved-object re-identification across five known objects. This isolates tracking rather
   than measuring end-to-end detector recall.
 - 48 focused tests pass; lint and type checking pass.
+
+Experimental result not selected: we tested semantic-object correction after SLAM loop closure by
+attaching each observation to the newest pose-graph keyframe. The replay does not provide the
+timestamp-matched source keyframe, and detections use an already accumulated global cloud, so this
+approximation could move an object incorrectly or correct it twice. We therefore excluded semantic
+pose-graph reprojection from the final pipeline; geometric LiDAR-map loop closure remains unchanged.
 
 ### Two-stage ablation study
 
